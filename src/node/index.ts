@@ -1,4 +1,4 @@
-import { PipewireLink, PipewirePort, PipewireNode } from "./types";
+import type { PipewireLink, PipewirePort, PipewireNode } from "./types";
 const library = require("./../../build/index.node");
 
 export function createPwThread() {
