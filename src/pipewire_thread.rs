@@ -1,10 +1,15 @@
 use crate::{MainOptions, PipewireData, PipewireOptions, ALL_DATA};
 use pipewire::{
-    link::Link, prelude::*, properties, registry::GlobalObject, spa::ForeignDict,
-    types::ObjectType, Context, Core, MainLoop,
+    link::Link,
+    prelude::*,
+    properties,
+    registry::{GlobalObject, Registry},
+    spa::ForeignDict,
+    types::ObjectType,
+    Context, Core, MainLoop,
 };
 
-use std::sync::mpsc;
+use std::{collections::HashMap, sync::mpsc};
 
 pub(super) fn pw_thread(
     front_sender: mpsc::Sender<MainOptions>,
@@ -25,6 +30,9 @@ pub(super) fn pw_thread(
     let _receiver = pw_receiver.attach(&mainloop, {
         let mainloop = mainloop.clone();
         let core = core.clone();
+        let registry = core
+            .get_registry()
+            .expect("ERROR: error at getting registry");
         move |msg| match msg {
             PipewireOptions::CloseThread => {
                 println!("Closing pipewire thread");
@@ -47,13 +55,14 @@ pub(super) fn pw_thread(
                 println!("Linking ports: {:?} -> {:?}", input_port, output_port);
             }
             PipewireOptions::UnLinkNodesNameToId {
-                output_nodes_name: input_nodes_name,
-                input_node_id: output_node_id,
+                output_nodes_name,
+                input_node_id,
             } => {
                 println!(
                     "Unlinking nodes: {:?} -> {:?}",
-                    input_nodes_name, output_node_id
+                    output_nodes_name, input_node_id
                 );
+                unlink_nodes_name_to_id(output_nodes_name, input_node_id, &registry)
             }
             PipewireOptions::UnLinkPorts {
                 input_port,
@@ -339,6 +348,38 @@ fn link_ports(input_node: u32, input_port: u32, output_node: u32, output_port: u
     .expect("ERROR: error at creating link");
 }
 
+fn unlink_ports(
+    input_node: u32,
+    input_port: u32,
+    output_node: u32,
+    output_port: u32,
+    registry: &Registry,
+    all_data: HashMap<u32, PipewireData>,
+) {
+    // From enum all_data, get only the PipewireData::Link
+    let mut links = Vec::new();
+    for data in all_data.iter() {
+        if let PipewireData::Link(link) = data.1 {
+            links.push(link);
+        }
+    }
+
+    // Get the link id.
+    let link_id = links
+        .iter()
+        .find(|link| {
+            link.output_node_id == output_node
+                && link.output_port_id == output_port
+                && link.input_node_id == input_node
+                && link.input_port_id == input_port
+        })
+        .expect("ERROR: error at getting link id")
+        .id;
+
+    // Remove the link.
+    registry.destroy_global(link_id);
+}
+
 fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
     let all_data = ALL_DATA.lock().unwrap();
 
@@ -434,6 +475,103 @@ fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
                 port.node_id,
                 port.id,
                 core,
+            );
+        }
+    } else {
+        // if the input ports (fr and fl) and the default input port (mono) are not found, print an error.
+        println!("ERROR: error at finding input ports");
+    }
+}
+
+fn unlink_nodes_name_to_id(nodes_name: String, input_node_id: u32, registry: &Registry) {
+    let all_data = ALL_DATA.lock().unwrap();
+
+    // From enum all_data, get only the PipewireData::Node
+    let mut nodes = Vec::new();
+    for data in all_data.iter() {
+        if let PipewireData::Node(node) = data.1 {
+            nodes.push(node);
+        }
+    }
+
+    // get all nodes that has the name of "nodes_name"
+    let output_nodes = nodes
+        .iter()
+        .filter(|node| node.name == nodes_name)
+        .collect::<Vec<_>>();
+
+    // get the input node and its ports
+    let input_node = nodes
+        .iter()
+        .find(|node| node.id == input_node_id)
+        .expect("ERROR: error at finding input node");
+
+    // get all output ports of the nodes.
+    let mut output_ports = Vec::new();
+    for node in output_nodes.iter() {
+        for port in node.ports.iter() {
+            if port.direction == "Output" {
+                output_ports.push(port);
+            }
+        }
+    }
+
+    // split the output ports into two vectors, FR and FL
+    let mut output_ports_fr = Vec::new();
+    let mut output_ports_fl = Vec::new();
+    for port in output_ports.iter() {
+        if port.name.contains("FR") {
+            output_ports_fr.push(port);
+        } else if port.name.contains("FL") {
+            output_ports_fl.push(port);
+        }
+    }
+
+    // get all input ports of the input node.
+    let mut input_ports = Vec::new();
+    for port in input_node.ports.iter() {
+        if port.direction == "Input" {
+            input_ports.push(port);
+        }
+    }
+
+    // split the input ports into variables, FR and FL. That will contain the ports that will be linked.
+    let input_port_fr = input_ports.iter().find(|port| port.name.contains("FR"));
+    let input_port_fl = input_ports.iter().find(|port| port.name.contains("FL"));
+    let default_input_port = input_ports.iter().find(|port| port.name == "MONO");
+
+    // if the input ports (fr and fl) are found, unlink every output port (fr and fl) to the input ports (fr and fl)
+    if input_port_fr.is_some() && input_port_fl.is_some() {
+        for port in output_ports_fr.iter() {
+            unlink_ports(
+                input_node_id,
+                input_port_fr.unwrap().id,
+                port.node_id,
+                port.id,
+                registry,
+                all_data.clone(),
+            );
+        }
+        for port in output_ports_fl.iter() {
+            unlink_ports(
+                input_node_id,
+                input_port_fl.unwrap().id,
+                port.node_id,
+                port.id,
+                registry,
+                all_data.clone(),
+            );
+        }
+    } else if default_input_port.is_some() {
+        // if the input ports (fr and fl) are not found, unlink every output port (fr and fl) to the default input port (mono)
+        for port in output_ports.iter() {
+            unlink_ports(
+                input_node_id,
+                default_input_port.unwrap().id,
+                port.node_id,
+                port.id,
+                registry,
+                all_data.clone(),
             );
         }
     } else {
