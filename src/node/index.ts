@@ -10,7 +10,7 @@ export function closePwThread() {
 }
 
 export function getLinks(): PipewireLink[] {
-  let temp = library.getLinks();
+  let temp: PipewireLink[] = library.getLinks();
   let links: PipewireLink[] = [];
   for (let i = 0; i < temp.length; i++) {
     if (temp[i].id) {
@@ -21,10 +21,10 @@ export function getLinks(): PipewireLink[] {
 }
 
 export function getPorts(): PipewirePort[] {
-  let temp = library.getPorts();
+  let temp: PipewirePort[] = library.getPorts();
   let ports: PipewirePort[] = [];
   for (let i = 0; i < temp.length; i++) {
-    if (temp[i].id) {
+    if (temp[i]?.id) {
       ports.push(temp[i]);
     }
   }
@@ -32,10 +32,10 @@ export function getPorts(): PipewirePort[] {
 }
 
 export function getNodes(): PipewireNode[] {
-  let temp = library.getNodes();
+  let temp: PipewireNode[] = library.getNodes();
   let nodes: PipewireNode[] = [];
   for (let i = 0; i < temp.length; i++) {
-    if (temp[i].id) {
+    if (temp[i]?.id) {
       nodes.push(temp[i]);
     }
   }
@@ -43,10 +43,10 @@ export function getNodes(): PipewireNode[] {
 }
 
 export function getOutputNodes(): PipewireNode[] {
-  let temp = library.getOutputNodes();
+  let temp: PipewireNode[] = library.getOutputNodes();
   let nodes: PipewireNode[] = [];
   for (let i = 0; i < temp.length; i++) {
-    if (temp[i].id) {
+    if (temp[i]?.id) {
       nodes.push(temp[i]);
     }
   }
@@ -57,7 +57,7 @@ export function getInputNodes(): PipewireNode[] {
   let temp = library.getOutputNodes();
   let nodes: PipewireNode[] = [];
   for (let i = 0; i < temp.length; i++) {
-    if (temp[i].id) {
+    if (temp[i]?.id) {
       nodes.push(temp[i]);
     }
   }
@@ -80,20 +80,20 @@ export function unlinkPorts(inputPortId: number, outputPortId: number) {
   return library.unlinkPorts(inputPortId, outputPortId);
 }
 
-export function getInputNodesName() {
+export function getInputNodesName(): string[] {
   const temp = getInputNodes();
   const nodes = [];
   for (let i = 0; i < temp.length; i++) {
-    nodes.push(temp[i].name);
+    nodes.push(temp[i]?.name);
   }
   return nodes;
 }
 
-export function getOutputNodesName() {
+export function getOutputNodesName(): string[] {
   const temp = getOutputNodes();
   const nodes = [];
   for (let i = 0; i < temp.length; i++) {
-    nodes.push(temp[i].name);
+    nodes.push(temp[i]?.name);
   }
   return nodes;
 }
