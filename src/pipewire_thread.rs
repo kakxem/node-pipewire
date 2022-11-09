@@ -331,17 +331,42 @@ fn save_link(link: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions
     }
 }
 
-fn link_ports(input_node: u32, input_port: u32, output_node: u32, output_port: u32, core: &Core) {
+fn link_ports(
+    input_port_id: u32,
+    output_port_id: u32,
+    core: &Core,
+    all_data: HashMap<u32, PipewireData>,
+) {
+    // From enum all_data, get only the PipewireData::Port
+    let mut ports = Vec::new();
+    for data in all_data.iter() {
+        if let PipewireData::Port(port) = data.1 {
+            ports.push(port);
+        }
+    }
+
+    // Get the input port.
+    let input_port = ports
+        .iter()
+        .find(|port| port.id == input_port_id)
+        .expect("ERROR: error at getting input port");
+
+    // Get the output port.
+    let output_port = ports
+        .iter()
+        .find(|port| port.id == output_port_id)
+        .expect("ERROR: error at getting output port");
+
     // Create the link.
     core.create_object::<Link, _>(
         // The actual name for a link factory might be different for your system,
         // you should probably obtain a factory from the registry.
         "link-factory",
         &properties! {
-            "link.output.port" => output_port.to_string(),
-            "link.input.port" => input_port.to_string(),
-            "link.output.node" => output_node.to_string(),
-            "link.input.node" => input_node.to_string(),
+            "link.output.port" => output_port.id.to_string(),
+            "link.input.port" => input_port.id.to_string(),
+            "link.output.node" => output_port.node_id.to_string(),
+            "link.input.node" => input_port.node_id.to_string(),
             "object.linger" => "1"
         },
     )
@@ -349,10 +374,8 @@ fn link_ports(input_node: u32, input_port: u32, output_node: u32, output_port: u
 }
 
 fn unlink_ports(
-    input_node: u32,
-    input_port: u32,
-    output_node: u32,
-    output_port: u32,
+    output_port_id: u32,
+    input_port_id: u32,
     registry: &Registry,
     all_data: HashMap<u32, PipewireData>,
 ) {
@@ -364,14 +387,34 @@ fn unlink_ports(
         }
     }
 
+    // From enum all_data, get only the PipewireData::Port
+    let mut ports = Vec::new();
+    for data in all_data.iter() {
+        if let PipewireData::Port(port) = data.1 {
+            ports.push(port);
+        }
+    }
+
+    // Get the output port.
+    let output_port = ports
+        .iter()
+        .find(|port| port.id == output_port_id)
+        .expect("ERROR: error at getting output port");
+
+    // Get the input port.
+    let input_port = ports
+        .iter()
+        .find(|port| port.id == input_port_id)
+        .expect("ERROR: error at getting input port");
+
     // Get the link id.
     let link_id = links
         .iter()
         .find(|link| {
-            link.output_node_id == output_node
-                && link.output_port_id == output_port
-                && link.input_node_id == input_node
-                && link.input_port_id == input_port
+            link.output_node_id == output_port.node_id
+                && link.output_port_id == output_port.id
+                && link.input_node_id == input_port.node_id
+                && link.input_port_id == input_port.id
         })
         .expect("ERROR: error at getting link id")
         .id;
@@ -440,41 +483,27 @@ fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
     // if the input ports (fr and fl) are found, link every output port (fr and fl) to the input ports (fr and fl)
     if input_port_fr.is_some() && input_port_fl.is_some() {
         for port in output_ports_fr.iter() {
-            link_ports(
-                input_node_id,
-                input_port_fr.unwrap().id,
-                port.node_id,
-                port.id,
-                core,
-            );
+            link_ports(input_port_fr.unwrap().id, port.id, core, all_data.clone());
         }
         for port in output_ports_fl.iter() {
-            link_ports(
-                input_node_id,
-                input_port_fl.unwrap().id,
-                port.node_id,
-                port.id,
-                core,
-            );
+            link_ports(input_port_fl.unwrap().id, port.id, core, all_data.clone());
         }
     } else if default_input_port.is_some() {
         // if the input ports (fr and fl) are not found, link every output port (fr and fl) to the default input port (mono)
         for port in output_ports_fr.iter() {
             link_ports(
-                input_node_id,
                 default_input_port.unwrap().id,
-                port.node_id,
                 port.id,
                 core,
+                all_data.clone(),
             );
         }
         for port in output_ports_fl.iter() {
             link_ports(
-                input_node_id,
                 default_input_port.unwrap().id,
-                port.node_id,
                 port.id,
                 core,
+                all_data.clone(),
             );
         }
     } else {
@@ -544,20 +573,16 @@ fn unlink_nodes_name_to_id(nodes_name: String, input_node_id: u32, registry: &Re
     if input_port_fr.is_some() && input_port_fl.is_some() {
         for port in output_ports_fr.iter() {
             unlink_ports(
-                input_node_id,
-                input_port_fr.unwrap().id,
-                port.node_id,
                 port.id,
+                input_port_fr.unwrap().id,
                 registry,
                 all_data.clone(),
             );
         }
         for port in output_ports_fl.iter() {
             unlink_ports(
-                input_node_id,
-                input_port_fl.unwrap().id,
-                port.node_id,
                 port.id,
+                input_port_fl.unwrap().id,
                 registry,
                 all_data.clone(),
             );
@@ -566,10 +591,8 @@ fn unlink_nodes_name_to_id(nodes_name: String, input_node_id: u32, registry: &Re
         // if the input ports (fr and fl) are not found, unlink every output port (fr and fl) to the default input port (mono)
         for port in output_ports.iter() {
             unlink_ports(
-                input_node_id,
-                default_input_port.unwrap().id,
-                port.node_id,
                 port.id,
+                default_input_port.unwrap().id,
                 registry,
                 all_data.clone(),
             );
