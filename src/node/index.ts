@@ -1,5 +1,5 @@
 import { PipewireLink, PipewirePort, PipewireNode } from "./types";
-const library = require("./../../index.node");
+const library = require("./../../build/index.node");
 
 export function createPwThread() {
   return library.createPwThread();
