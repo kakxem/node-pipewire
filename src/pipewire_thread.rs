@@ -96,28 +96,9 @@ pub(super) fn pw_thread(
             let sender = front_sender.clone();
 
             move |id| {
-                let all_data = ALL_DATA.lock().unwrap();
-                let data = all_data.get(&id).unwrap().clone();
-                drop(all_data);
-
-                // send the id of the node to the front (the match is optional because in front we'll remove the id from the HashMap, but maybe it's useful for other things)
-                match data {
-                    PipewireData::Node(_) => {
-                        sender
-                            .send(MainOptions::DeleteNode { id })
-                            .expect("ERROR: error at sending option to front");
-                    }
-                    PipewireData::Port(_) => {
-                        sender
-                            .send(MainOptions::DeletePort { id })
-                            .expect("ERROR: error at sending option to front");
-                    }
-                    PipewireData::Link(_) => {
-                        sender
-                            .send(MainOptions::DeleteLink { id })
-                            .expect("ERROR: error at sending option to front");
-                    }
-                }
+                sender
+                    .send(MainOptions::DeleteItem { id })
+                    .expect("ERROR: error at sending delete to front");
             }
         })
         .register();

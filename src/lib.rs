@@ -153,16 +153,8 @@ enum MainOptions {
         input_port: u32,
         output_port: u32,
     },
-    // Delete a node.
-    DeleteNode {
-        id: u32,
-    },
-    // Delete a port.
-    DeletePort {
-        id: u32,
-    },
-    // Delete a link.
-    DeleteLink {
+    // Delete item (node, port, link).
+    DeleteItem {
         id: u32,
     },
 }
@@ -329,29 +321,32 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                     }),
                 );
             }
-            MainOptions::DeleteNode { id } => {
-                println!("{} - Node removed: id: {}", num_changes, id);
-                num_changes += 1;
-
-                // remove node from ALL_DATA
+            MainOptions::DeleteItem { id } => {
+                 // remove item from ALL_DATA
                 let mut all_data = ALL_DATA.lock().unwrap();
-                all_data.remove(&id);
-            }
-            MainOptions::DeletePort { id } => {
-                println!("{} - Port removed: id: {}", num_changes, id);
-                num_changes += 1;
-
-                // remove port from ALL_DATA
-                let mut all_data = ALL_DATA.lock().unwrap();
-                all_data.remove(&id);
-            }
-            MainOptions::DeleteLink { id } => {
-                println!("{} - Link removed: id: {}", num_changes, id);
-                num_changes += 1;
-
-                // remove link from ALL_DATA
-                let mut all_data = ALL_DATA.lock().unwrap();
-                all_data.remove(&id);
+                
+                // the next if is only to debug purposes
+                if let Some(item) = all_data.get(&id) {
+                    match item {
+                        PipewireData::Node(node) => {
+                            println!("{} - Removing node: id: {}, name: {}", num_changes, node.id, node.name);
+                        }
+                        PipewireData::Port(port) => {
+                            println!("{} - Removing port: id: {}, name: {}", num_changes, port.id, port.name);
+                        }
+                        PipewireData::Link(link) => {
+                            println!("{} - Removing link: id: {}, node_from: {}, port_from: {}, node_to: {}, port_to: {}", num_changes, link.id, link.input_node_id, link.input_port_id, link.output_node_id, link.output_port_id);
+                        }
+                    }
+                } else {
+                    println!("{} - Removing unknown: {}", num_changes, id);
+                }
+                
+                if let Some(_) = all_data.remove(&id) {
+                    num_changes += 1;
+                } else {
+                    println!("{} - Error removing item: {}", num_changes, id);
+                }
             }
         }
     });
