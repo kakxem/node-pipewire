@@ -1,5 +1,5 @@
 {
-  "name": "@kakxem/node-pipewire",
+  "name": "node-pipewire",
   "version": "1.0.0",
   "description": "NodeJS native module written in Rust and Typescript to interact with Pipewire",
   "main": "build/index.js",
