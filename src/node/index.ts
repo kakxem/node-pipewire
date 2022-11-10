@@ -1,4 +1,6 @@
 import type { PipewireLink, PipewirePort, PipewireNode } from "./types";
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const library = require("./../../build/index.node");
 
 export function createPwThread() {
@@ -10,8 +12,8 @@ export function closePwThread() {
 }
 
 export function getLinks(): PipewireLink[] {
-  let temp: PipewireLink[] = library.getLinks();
-  let links: PipewireLink[] = [];
+  const temp: PipewireLink[] = library.getLinks();
+  const links: PipewireLink[] = [];
   for (let i = 0; i < temp.length; i++) {
     if (temp[i].id) {
       links.push(temp[i]);
@@ -21,8 +23,8 @@ export function getLinks(): PipewireLink[] {
 }
 
 export function getPorts(): PipewirePort[] {
-  let temp: PipewirePort[] = library.getPorts();
-  let ports: PipewirePort[] = [];
+  const temp: PipewirePort[] = library.getPorts();
+  const ports: PipewirePort[] = [];
   for (let i = 0; i < temp.length; i++) {
     if (temp[i]?.id) {
       ports.push(temp[i]);
@@ -32,8 +34,8 @@ export function getPorts(): PipewirePort[] {
 }
 
 export function getNodes(): PipewireNode[] {
-  let temp: PipewireNode[] = library.getNodes();
-  let nodes: PipewireNode[] = [];
+  const temp: PipewireNode[] = library.getNodes();
+  const nodes: PipewireNode[] = [];
   for (let i = 0; i < temp.length; i++) {
     if (temp[i]?.id) {
       nodes.push(temp[i]);
@@ -43,8 +45,8 @@ export function getNodes(): PipewireNode[] {
 }
 
 export function getOutputNodes(): PipewireNode[] {
-  let temp: PipewireNode[] = library.getOutputNodes();
-  let nodes: PipewireNode[] = [];
+  const temp: PipewireNode[] = library.getOutputNodes();
+  const nodes: PipewireNode[] = [];
   for (let i = 0; i < temp.length; i++) {
     if (temp[i]?.id) {
       nodes.push(temp[i]);
@@ -54,8 +56,8 @@ export function getOutputNodes(): PipewireNode[] {
 }
 
 export function getInputNodes(): PipewireNode[] {
-  let temp = library.getOutputNodes();
-  let nodes: PipewireNode[] = [];
+  const temp = library.getOutputNodes();
+  const nodes: PipewireNode[] = [];
   for (let i = 0; i < temp.length; i++) {
     if (temp[i]?.id) {
       nodes.push(temp[i]);
