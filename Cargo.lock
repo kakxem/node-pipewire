@@ -348,7 +348,7 @@ dependencies = [
 
 [[package]]
 name = "node-pipewire"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "lazy_static",
  "neon",
