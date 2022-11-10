@@ -1,7 +1,7 @@
 [package]
 name = "node-pipewire"
-version = "0.1.0"
-license = "ISC"
+version = "1.0.0"
+license = "MIT"
 edition = "2018"
 exclude = ["index.node"]
 
