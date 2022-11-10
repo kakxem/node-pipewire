@@ -1,7 +1,7 @@
 import type { PipewireLink, PipewirePort, PipewireNode } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const library = require("./../../build/index.node");
+const library = require("./index.node");
 
 export function createPwThread() {
   return library.createPwThread();
