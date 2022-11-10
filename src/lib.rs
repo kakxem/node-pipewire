@@ -322,17 +322,23 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 );
             }
             MainOptions::DeleteItem { id } => {
-                 // remove item from ALL_DATA
+                // remove item from ALL_DATA
                 let mut all_data = ALL_DATA.lock().unwrap();
-                
+
                 // the next if is only to debug purposes
                 if let Some(item) = all_data.get(&id) {
                     match item {
                         PipewireData::Node(node) => {
-                            println!("{} - Removing node: id: {}, name: {}", num_changes, node.id, node.name);
+                            println!(
+                                "{} - Removing node: id: {}, name: {}",
+                                num_changes, node.id, node.name
+                            );
                         }
                         PipewireData::Port(port) => {
-                            println!("{} - Removing port: id: {}, name: {}", num_changes, port.id, port.name);
+                            println!(
+                                "{} - Removing port: id: {}, name: {}",
+                                num_changes, port.id, port.name
+                            );
                         }
                         PipewireData::Link(link) => {
                             println!("{} - Removing link: id: {}, node_from: {}, port_from: {}, node_to: {}, port_to: {}", num_changes, link.id, link.input_node_id, link.input_port_id, link.output_node_id, link.output_port_id);
@@ -341,7 +347,7 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 } else {
                     println!("{} - Removing unknown: {}", num_changes, id);
                 }
-                
+
                 if let Some(_) = all_data.remove(&id) {
                     num_changes += 1;
                 } else {
