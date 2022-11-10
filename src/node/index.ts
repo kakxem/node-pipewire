@@ -83,8 +83,8 @@ export function unlinkPorts(inputPortId: number, outputPortId: number) {
 }
 
 export function getInputNodesName(): string[] {
-  const temp = getInputNodes();
-  const nodes = [];
+  const temp: PipewireNode[] = getInputNodes();
+  const nodes: string[] = [];
   for (let i = 0; i < temp.length; i++) {
     nodes.push(temp[i]?.name);
   }
@@ -92,8 +92,8 @@ export function getInputNodesName(): string[] {
 }
 
 export function getOutputNodesName(): string[] {
-  const temp = getOutputNodes();
-  const nodes = [];
+  const temp: PipewireNode[] = getOutputNodes();
+  const nodes: string[] = [];
   for (let i = 0; i < temp.length; i++) {
     nodes.push(temp[i]?.name);
   }
