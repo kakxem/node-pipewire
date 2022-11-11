@@ -109,6 +109,13 @@ unlinkNodesNameToId(nodeName, nodeId)
 
 This project was bootstrapped by [create-neon](https://www.npmjs.com/package/create-neon).
 
+Clone the repository:
+  
+```sh
+  $ git clone https://github.com/kakxem/node-pipewire.git
+  $ cd node-pipewire
+```
+
 ### Installing node-pipewire
 
 Installing node-pipewire requires a [supported version of Node and Rust](https://github.com/neon-bindings/neon#platform-support).
