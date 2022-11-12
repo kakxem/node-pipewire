@@ -9,11 +9,16 @@ use pipewire::{
     Context, Core, MainLoop,
 };
 
-use std::sync::mpsc;
+use std::{cell::RefCell, sync::mpsc};
+
+thread_local! {
+    static ENABLE_DEBUG: RefCell<bool> = RefCell::new(false);
+}
 
 pub(super) fn pw_thread(
     front_sender: mpsc::Sender<MainOptions>,
     pw_receiver: pipewire::channel::Receiver<PipewireOptions>,
+    enable_debug: bool,
 ) {
     // Basic setup of pipewire thread
     let mainloop = MainLoop::new().expect("ERROR: error at creating mainloop");
@@ -35,41 +40,51 @@ pub(super) fn pw_thread(
             .expect("ERROR: error at getting registry");
         move |msg| match msg {
             PipewireOptions::CloseThread => {
-                println!("Closing pipewire thread");
+                if enable_debug {
+                    println!("Closing pipewire thread");
+                }
                 mainloop.quit();
             }
             PipewireOptions::LinkNodesNameToId {
                 output_nodes_name,
                 input_node_id,
             } => {
-                println!(
-                    "Linking nodes: {:?} -> {:?}",
-                    output_nodes_name, input_node_id
-                );
+                if enable_debug {
+                    println!(
+                        "Linking nodes: {:?} -> {:?}",
+                        output_nodes_name, input_node_id
+                    );
+                }
                 link_nodes_name_to_id(output_nodes_name, input_node_id, &core)
             }
             PipewireOptions::LinkPorts {
                 input_port,
                 output_port,
             } => {
-                println!("Linking ports: {:?} -> {:?}", input_port, output_port);
+                if enable_debug {
+                    println!("Linking ports: {:?} -> {:?}", input_port, output_port);
+                }
                 link_ports(input_port, output_port, &core);
             }
             PipewireOptions::UnLinkNodesNameToId {
                 output_nodes_name,
                 input_node_id,
             } => {
-                println!(
-                    "Unlinking nodes: {:?} -> {:?}",
-                    output_nodes_name, input_node_id
-                );
+                if enable_debug {
+                    println!(
+                        "Unlinking nodes: {:?} -> {:?}",
+                        output_nodes_name, input_node_id
+                    );
+                }
                 unlink_nodes_name_to_id(output_nodes_name, input_node_id, &registry)
             }
             PipewireOptions::UnLinkPorts {
                 input_port,
                 output_port,
             } => {
-                println!("Unlinking ports: {:?} -> {:?}", input_port, output_port);
+                if enable_debug {
+                    println!("Unlinking ports: {:?} -> {:?}", input_port, output_port);
+                }
                 unlink_ports(input_port, output_port, &registry);
             }
         }
@@ -102,6 +117,9 @@ pub(super) fn pw_thread(
             }
         })
         .register();
+
+    // save the enable_debug value in the thread local variable
+    ENABLE_DEBUG.with(|e| *e.borrow_mut() = enable_debug);
 
     mainloop.run();
 }
@@ -481,7 +499,9 @@ fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
         }
     } else {
         // if the input ports (fr and fl) and the default input port (mono) are not found, print an error.
-        println!("ERROR: error at finding input ports");
+        if ENABLE_DEBUG.with(|f| *f.borrow()) {
+            println!("ERROR: error at finding input ports");
+        }
     }
 }
 
@@ -558,6 +578,8 @@ fn unlink_nodes_name_to_id(nodes_name: String, input_node_id: u32, registry: &Re
         }
     } else {
         // if the input ports (fr and fl) and the default input port (mono) are not found, print an error.
-        println!("ERROR: error at finding input ports");
+        if ENABLE_DEBUG.with(|f| *f.borrow()) {
+            println!("ERROR: error at finding input ports");
+        }
     }
 }
