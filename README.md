@@ -41,12 +41,7 @@ First of all, we'll need to install the module:
 $ npm install node-pipewire
 ```
 
-Then, we'll need to compile the rust code to generate the native module:
-
-```sh
-$ cd node_modules/node-pipewire
-$ npm install 
-```
+If you have all the dependencies installed, you should be able to compile the module. If you have any problem, please open an issue.
 
 ## Usage
 
