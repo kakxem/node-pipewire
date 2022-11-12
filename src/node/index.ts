@@ -61,7 +61,7 @@ export function getOutputNodes(): PipewireNode[] {
 }
 
 export function getInputNodes(): PipewireNode[] {
-  const temp = library.getOutputNodes();
+  const temp = library.getInputNodes();
   const nodes: PipewireNode[] = [];
   for (let i = 0; i < temp.length; i++) {
     if (temp[i]?.id) {
