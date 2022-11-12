@@ -1,13 +1,13 @@
 {
   "name": "node-pipewire",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "NodeJS native module written in Rust and Typescript to interact with Pipewire",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "scripts": {
     "build": "cargo-cp-artifact -nc build/index.node -- cargo build --message-format=json-render-diagnostics",
-    "build-debug": "npm run build --",
-    "build-release": "tsc && npm run build -- --release",
+    "build-debug": "tsc && npm run build --",
+    "build-release": "npm run build -- --release",
     "install": "npm run build-release",
     "test": "cargo test"
   },
@@ -17,9 +17,11 @@
     "@types/node": "^18.11.9",
     "@typescript-eslint/eslint-plugin": "^5.42.1",
     "@typescript-eslint/parser": "^5.42.1",
-    "cargo-cp-artifact": "^0.1",
     "eslint": "^8.27.0",
     "typescript": "^4.8.4"
+  },
+  "dependencies": {
+    "cargo-cp-artifact": "^0.1"
   },
   "repository": {
     "type": "git",
