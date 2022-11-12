@@ -69,10 +69,10 @@ main();
 
 ```ts
 //Creates a thread that runs the pipewire loop.
-createPwThread()
+createPwThread(enableDebug?: boolean)
 
 //Returns a list of nodes.
-getNodes()
+getNodes() 
 
 //Returns a list of ports.
 getPorts()
@@ -93,16 +93,16 @@ getInputNodesName()
 getOutputNodesName()
 
 //Links two ports.
-linkPorts(inputPortId, outputPortId)
+linkPorts(inputPortId: number, outputPortId, number)
 
 //Unlinks two ports.
-unlinkPorts(inputPortId, outputPortId)
+unlinkPorts(inputPortId: number, outputPortId: number)
 
 //Link all nodes that have the name `nodeName` to the node with the id `nodeId`.
-linkNodesNameToId(nodeName, nodeId)
+linkNodesNameToId(nodeName: string, nodeId: number)
 
 //Unlink all nodes that have the name `nodeName` to the node with the id `nodeId`.
-unlinkNodesNameToId(nodeName, nodeId)
+unlinkNodesNameToId(nodeName: string, nodeId: number)
 ```
 
 ## Development
