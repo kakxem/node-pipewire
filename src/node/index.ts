@@ -7,9 +7,10 @@ export function createPwThread() {
   return library.createPwThread();
 }
 
-export function closePwThread() {
+// This feature is not yet implemented in the library
+/* export function closePwThread() {
   return library.closePwThread();
-}
+} */
 
 export function getLinks(): PipewireLink[] {
   const temp: PipewireLink[] = library.getLinks();
