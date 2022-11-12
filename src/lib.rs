@@ -191,11 +191,24 @@ lazy_static! {
 // create a global variable that will store the sender of the main thread
 thread_local! {
     static PW_SENDER: RefCell<Option<pipewire::channel::Sender<PipewireOptions>>> = RefCell::new(None);
+    static ENABLE_DEBUG: RefCell<bool> = RefCell::new(false);
 }
 
 fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     // Mini-Schema:
     // - We can send option to pipewire with pw_sender and we receive options from pipewire with pw_receiver.
+
+    // get the debug boolean from the arguments
+    let debug_argument = cx
+        .argument_opt(0)
+        .map(|v| Ok(v.downcast_or_throw::<JsBoolean, _>(&mut cx)?.value(&mut cx)))
+        .transpose()?;
+
+    if let Some(debug) = debug_argument {
+        ENABLE_DEBUG.with(|v| *v.borrow_mut() = debug);
+    }
+
+    let enable_debug = ENABLE_DEBUG.with(|v| *v.borrow());
 
     // start a sender and receiver to communicate with the pipewire thread
     let (main_sender, main_receiver) = mpsc::channel();
@@ -210,7 +223,7 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     // Start the pipewire thread.
     // TODO: make the thread global to be able to stop it.
     let _pw_thread = std::thread::spawn(move || {
-        pipewire_thread::pw_thread(main_sender, pw_receiver);
+        pipewire_thread::pw_thread(main_sender, pw_receiver, enable_debug);
     });
 
     let mut num_changes = 0;
@@ -227,10 +240,12 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 node_direction,
                 node_type,
             } => {
-                println!(
-                    "{} + Node added: id: {}, name: {}, direction: {:?},",
-                    num_changes, id, name, node_direction
-                );
+                if enable_debug {
+                    println!(
+                        "{} + Node added: id: {}, name: {}, direction: {:?},",
+                        num_changes, id, name, node_direction
+                    );
+                }
                 num_changes += 1;
 
                 // add port to ALL_DATA
@@ -257,10 +272,12 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 name,
                 direction,
             } => {
-                println!(
-                    "{} + Port added: id: {}, node_id: {}, name: {}, direction: {:?}",
-                    num_changes, id, node_id, name, direction
-                );
+                if enable_debug {
+                    println!(
+                        "{} + Port added: id: {}, node_id: {}, name: {}, direction: {:?}",
+                        num_changes, id, node_id, name, direction
+                    );
+                }
                 num_changes += 1;
 
                 // add port to ALL_DATA
@@ -299,10 +316,12 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 output_node,
                 output_port,
             } => {
-                println!(
-                        "{} + Link added: id: {}, node_from: {}, port_from: {}, node_to: {}, port_to: {}",
-                        num_changes, id, input_node, input_port, output_node, output_port
-                    );
+                if enable_debug {
+                    println!(
+                            "{} + Link added: id: {}, node_from: {}, port_from: {}, node_to: {}, port_to: {}",
+                            num_changes, id, input_node, input_port, output_node, output_port
+                        );
+                }
                 num_changes += 1;
 
                 // add link to ALL_DATA
@@ -326,38 +345,45 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                 let mut all_data = ALL_DATA.lock().unwrap();
 
                 // the next if is only to debug purposes
-                if let Some(item) = all_data.get(&id) {
-                    match item {
-                        PipewireData::Node(node) => {
-                            println!(
-                                "{} - Removing node: id: {}, name: {}",
-                                num_changes, node.id, node.name
-                            );
+                if enable_debug {
+                    if let Some(item) = all_data.get(&id) {
+                        match item {
+                            PipewireData::Node(node) => {
+                                println!(
+                                    "{} - Removing node: id: {}, name: {}",
+                                    num_changes, node.id, node.name
+                                );
+                            }
+                            PipewireData::Port(port) => {
+                                println!(
+                                    "{} - Removing port: id: {}, name: {}",
+                                    num_changes, port.id, port.name
+                                );
+                            }
+                            PipewireData::Link(link) => {
+                                println!("{} - Removing link: id: {}, node_from: {}, port_from: {}, node_to: {}, port_to: {}", num_changes, link.id, link.input_node_id, link.input_port_id, link.output_node_id, link.output_port_id);
+                            }
                         }
-                        PipewireData::Port(port) => {
-                            println!(
-                                "{} - Removing port: id: {}, name: {}",
-                                num_changes, port.id, port.name
-                            );
-                        }
-                        PipewireData::Link(link) => {
-                            println!("{} - Removing link: id: {}, node_from: {}, port_from: {}, node_to: {}, port_to: {}", num_changes, link.id, link.input_node_id, link.input_port_id, link.output_node_id, link.output_port_id);
-                        }
+                    } else {
+                        println!("{} - Removing unknown: {}", num_changes, id);
                     }
-                } else {
-                    println!("{} - Removing unknown: {}", num_changes, id);
                 }
 
                 if let Some(_) = all_data.remove(&id) {
                     num_changes += 1;
                 } else {
-                    println!("{} - Error removing item: {}", num_changes, id);
+                    if enable_debug {
+                        println!("{} - Error removing item: {}", num_changes, id);
+                    }
                 }
             }
         }
     });
 
-    //
+    // save the enable_debug in a global variable
+    ENABLE_DEBUG.with(|debug| {
+        *debug.borrow_mut() = enable_debug;
+    });
 
     Ok(cx.undefined())
 }
@@ -375,7 +401,9 @@ fn close_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let result = temp_pw_sender.send(PipewireOptions::CloseThread);
 
     if let Err(_) = result {
-        println!("Error sending message to pw thread");
+        if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+            println!("Error sending message to pw thread");
+        }
     }
 
     Ok(cx.undefined())
@@ -533,7 +561,9 @@ fn link_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     });
 
     if let Err(_) = result {
-        println!("Error sending message to pw thread");
+        if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+            println!("Error sending message to pw thread");
+        }
     }
 
     Ok(cx.undefined())
@@ -566,7 +596,9 @@ fn unlink_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     });
 
     if let Err(_) = result {
-        println!("Error sending message to pw thread");
+        if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+            println!("Error sending message to pw thread");
+        }
     }
 
     Ok(cx.undefined())
@@ -599,7 +631,9 @@ fn link_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     });
 
     if let Err(_) = result {
-        println!("Error sending message to pw thread");
+        if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+            println!("Error sending message to pw thread");
+        }
     }
 
     Ok(cx.undefined())
@@ -632,7 +666,9 @@ fn unlink_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     });
 
     if let Err(_) = result {
-        println!("Error sending message to pw thread");
+        if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+            println!("Error sending message to pw thread");
+        }
     }
 
     Ok(cx.undefined())
