@@ -376,7 +376,7 @@ fn link_ports(input_port_id: u32, output_port_id: u32, core: &Core) {
 }
 
 // Unlink two ports.
-fn unlink_ports(output_port_id: u32, input_port_id: u32, registry: &Registry) {
+fn unlink_ports(input_port_id: u32, output_port_id: u32, registry: &Registry) {
     let all_data = ALL_DATA.lock().unwrap();
     // From enum all_data, get only the PipewireData::Link
     let mut links = Vec::new();
