@@ -1,5 +1,5 @@
 export interface PipewirePort {
-  id: string;
+  id: number;
   permissions: number;
   props: string;
   node_id: number;
