@@ -1,4 +1,6 @@
+#[cfg(feature = "pipewire")]
 use crate::{MainOptions, PipewireData, PipewireOptions, ALL_DATA};
+#[cfg(feature = "pipewire")]
 use pipewire::{
     link::Link,
     prelude::*,
@@ -15,6 +17,7 @@ thread_local! {
     static ENABLE_DEBUG: RefCell<bool> = RefCell::new(false);
 }
 
+#[cfg(feature = "pipewire")]
 pub(super) fn pw_thread(
     front_sender: mpsc::Sender<MainOptions>,
     pw_receiver: pipewire::channel::Receiver<PipewireOptions>,
@@ -124,6 +127,7 @@ pub(super) fn pw_thread(
     mainloop.run();
 }
 
+#[cfg(feature = "pipewire")]
 // Create a node and send it to the front.
 fn save_node(node: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions>) {
     // println!("Node: {:?}", node);
@@ -201,6 +205,7 @@ fn save_node(node: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions
         .expect("ERROR: error at sending option to front");
 }
 
+#[cfg(feature = "pipewire")]
 // Create a port and send it to the front.
 fn save_port(port: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions>) {
     // println!("Port: {:?}", port);
@@ -258,6 +263,7 @@ fn save_port(port: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions
         .expect("ERROR: error at sending option to front");
 }
 
+#[cfg(feature = "pipewire")]
 // Create or modify link and send it to the front.
 fn save_link(link: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions>) {
     // println!("Link: {:?}", link);
@@ -334,6 +340,7 @@ fn save_link(link: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions
     }
 }
 
+#[cfg(feature = "pipewire")]
 // Link two ports.
 fn link_ports(input_port_id: u32, output_port_id: u32, core: &Core) {
     let mut ports = Vec::new();
@@ -375,6 +382,7 @@ fn link_ports(input_port_id: u32, output_port_id: u32, core: &Core) {
     .expect("ERROR: error at creating link");
 }
 
+#[cfg(feature = "pipewire")]
 // Unlink two ports.
 fn unlink_ports(input_port_id: u32, output_port_id: u32, registry: &Registry) {
     let all_data = ALL_DATA.lock().unwrap();
@@ -423,6 +431,7 @@ fn unlink_ports(input_port_id: u32, output_port_id: u32, registry: &Registry) {
     registry.destroy_global(link_id);
 }
 
+#[cfg(feature = "pipewire")]
 fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
     let all_data = ALL_DATA.lock().unwrap();
 
@@ -505,6 +514,7 @@ fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
     }
 }
 
+#[cfg(feature = "pipewire")]
 fn unlink_nodes_name_to_id(nodes_name: String, input_node_id: u32, registry: &Registry) {
     let all_data = ALL_DATA.lock().unwrap();
 

@@ -2,6 +2,8 @@ mod pipewire_thread;
 
 use lazy_static::lazy_static;
 use neon::prelude::*;
+
+#[cfg(feature = "pipewire")]
 use pipewire::registry::Permission;
 use std::{
     cell::RefCell,
@@ -9,6 +11,7 @@ use std::{
     sync::{mpsc, Arc, Mutex},
 };
 
+#[cfg(feature = "pipewire")]
 #[derive(Clone, Debug)]
 pub struct PipewirePort {
     pub id: u32,
@@ -19,6 +22,7 @@ pub struct PipewirePort {
     pub direction: String,
 }
 
+#[cfg(feature = "pipewire")]
 impl PipewirePort {
     fn to_object<'a>(&self, cx: &mut FunctionContext<'a>) -> JsResult<'a, JsObject> {
         let obj = cx.empty_object();
@@ -40,6 +44,7 @@ impl PipewirePort {
         Ok(obj)
     }
 }
+#[cfg(feature = "pipewire")]
 #[derive(Clone, Debug)]
 pub struct PipewireNode {
     pub id: u32,
@@ -51,6 +56,7 @@ pub struct PipewireNode {
     pub ports: Vec<PipewirePort>,
 }
 
+#[cfg(feature = "pipewire")]
 impl PipewireNode {
     fn to_object<'a>(&self, cx: &mut FunctionContext<'a>) -> JsResult<'a, JsObject> {
         let obj = cx.empty_object();
@@ -80,6 +86,7 @@ impl PipewireNode {
     }
 }
 
+#[cfg(feature = "pipewire")]
 #[derive(Clone, Debug)]
 pub struct PipewireLink {
     pub id: u32,
@@ -91,6 +98,7 @@ pub struct PipewireLink {
     pub output_port_id: u32,
 }
 
+#[cfg(feature = "pipewire")]
 impl PipewireLink {
     fn to_object<'a>(&self, cx: &mut FunctionContext<'a>) -> JsResult<'a, JsObject> {
         let obj = cx.empty_object();
@@ -115,6 +123,7 @@ impl PipewireLink {
     }
 }
 
+#[cfg(feature = "pipewire")]
 // create an enum that will contain all the data we need to store
 #[derive(Clone, Debug)]
 pub enum PipewireData {
@@ -123,6 +132,7 @@ pub enum PipewireData {
     Node(PipewireNode),
 }
 
+#[cfg(feature = "pipewire")]
 // Create an enum with all the options that are available to send in front. (Pipewire thread -> Front)
 enum MainOptions {
     // Create a node.
@@ -159,6 +169,7 @@ enum MainOptions {
     },
 }
 
+#[cfg(feature = "pipewire")]
 // Create an enum with all the options that are available to send in back. (Front -> Pipewire thread)
 enum PipewireOptions {
     // Close the mainloop of the pipewire thread.
@@ -182,6 +193,7 @@ enum PipewireOptions {
     },
 }
 
+#[cfg(feature = "pipewire")]
 // create a global variable with RefCell to store all the data we need
 lazy_static! {
     static ref ALL_DATA: Arc<Mutex<HashMap<u32, PipewireData>>> =
@@ -189,11 +201,19 @@ lazy_static! {
 }
 
 // create a global variable that will store the sender of the main thread
+#[cfg(feature = "pipewire")]
 thread_local! {
+    static ENABLE_DEBUG: RefCell<bool> = RefCell::new(false);
     static PW_SENDER: RefCell<Option<pipewire::channel::Sender<PipewireOptions>>> = RefCell::new(None);
+}
+
+#[cfg(not(feature = "pipewire"))]
+// create a global variable that will store the sender of the main thread
+thread_local! {
     static ENABLE_DEBUG: RefCell<bool> = RefCell::new(false);
 }
 
+#[cfg(feature = "pipewire")]
 fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     // Mini-Schema:
     // - We can send option to pipewire with pw_sender and we receive options from pipewire with pw_receiver.
@@ -388,6 +408,7 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
+#[cfg(feature = "pipewire")]
 fn close_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     // get the pw_sender from the context data
     let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
@@ -409,6 +430,7 @@ fn close_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
+#[cfg(feature = "pipewire")]
 fn get_links(mut cx: FunctionContext) -> JsResult<JsArray> {
     let output = JsArray::new(&mut cx, 0);
 
@@ -433,6 +455,7 @@ fn get_links(mut cx: FunctionContext) -> JsResult<JsArray> {
     Ok(output)
 }
 
+#[cfg(feature = "pipewire")]
 fn get_ports(mut cx: FunctionContext) -> JsResult<JsArray> {
     let output = JsArray::new(&mut cx, 0);
 
@@ -458,6 +481,7 @@ fn get_ports(mut cx: FunctionContext) -> JsResult<JsArray> {
     Ok(output)
 }
 
+#[cfg(feature = "pipewire")]
 fn get_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
     let output = JsArray::new(&mut cx, 0);
 
@@ -482,6 +506,7 @@ fn get_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
     Ok(output)
 }
 
+#[cfg(feature = "pipewire")]
 fn get_output_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
     let output = JsArray::new(&mut cx, 0);
 
@@ -508,6 +533,7 @@ fn get_output_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
     Ok(output)
 }
 
+#[cfg(feature = "pipewire")]
 fn get_input_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
     let output = JsArray::new(&mut cx, 0);
 
@@ -534,6 +560,7 @@ fn get_input_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
     Ok(output)
 }
 
+#[cfg(feature = "pipewire")]
 fn link_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let input_nodes_name = cx.argument::<JsString>(0)?;
     let output_node_id = cx.argument::<JsNumber>(1)?;
@@ -569,6 +596,7 @@ fn link_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
+#[cfg(feature = "pipewire")]
 fn unlink_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let output_nodes_name = cx.argument::<JsString>(0)?;
     let input_node_id = cx.argument::<JsNumber>(1)?;
@@ -604,6 +632,7 @@ fn unlink_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
+#[cfg(feature = "pipewire")]
 fn link_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let input_port_id = cx.argument::<JsNumber>(0)?;
     let output_port_id = cx.argument::<JsNumber>(1)?;
@@ -639,6 +668,7 @@ fn link_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
+#[cfg(feature = "pipewire")]
 fn unlink_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let input_port_id = cx.argument::<JsNumber>(0)?;
     let output_port_id = cx.argument::<JsNumber>(1)?;
@@ -669,6 +699,125 @@ fn unlink_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
             println!("Error sending message to pw thread");
         }
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "create_pw_thread" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let debug_argument = cx
+        .argument_opt(0)
+        .map(|v| Ok(v.downcast_or_throw::<JsBoolean, _>(&mut cx)?.value(&mut cx)))
+        .transpose()?;
+
+    if let Some(debug) = debug_argument {
+        ENABLE_DEBUG.with(|v| *v.borrow_mut() = debug);
+    }
+
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("create_pw_thread called but pipewire feature not enabled");
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "close_pw_thread" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn close_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("close_pw_thread called but pipewire feature not enabled");
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "get_links" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn get_links(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("get_links called but pipewire feature not enabled");
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "get_nodes" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn get_nodes(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("get_nodes called but pipewire feature not enabled");
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "get_ports" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn get_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("get_ports called but pipewire feature not enabled");
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "get_output_nodes" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn get_output_nodes(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("get_output_nodes called but pipewire feature not enabled");
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "get_input_nodes" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn get_input_nodes(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("get_input_nodes called but pipewire feature not enabled");
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "link_nodes_name_to_id" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn link_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("link_nodes_name_to_id called but pipewire feature not enabled");
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "unlink_nodes_name_to_id" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn unlink_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("unlink_nodes_name_to_id called but pipewire feature not enabled");
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "link_ports" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn link_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("link_ports called but pipewire feature not enabled");
+    }
+
+    Ok(cx.undefined())
+}
+
+// create a function "unlink_ports" in case the feature "pipewire" isn't enabled
+#[cfg(not(feature = "pipewire"))]
+fn unlink_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
+        println!("unlink_ports called but pipewire feature not enabled");
     }
 
     Ok(cx.undefined())
