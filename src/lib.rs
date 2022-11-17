@@ -735,52 +735,57 @@ fn close_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 
 // create a function "get_links" in case the feature "pipewire" isn't enabled
 #[cfg(not(feature = "pipewire"))]
-fn get_links(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+fn get_links(mut cx: FunctionContext) -> JsResult<JsArray> {
+    let output = JsArray::new(&mut cx, 0);
     if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
         println!("get_links called but pipewire feature not enabled");
     }
 
-    Ok(cx.undefined())
+    Ok(output)
 }
 
 // create a function "get_nodes" in case the feature "pipewire" isn't enabled
 #[cfg(not(feature = "pipewire"))]
-fn get_nodes(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+fn get_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
+    let output = JsArray::new(&mut cx, 0);
     if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
         println!("get_nodes called but pipewire feature not enabled");
     }
 
-    Ok(cx.undefined())
+    Ok(output)
 }
 
 // create a function "get_ports" in case the feature "pipewire" isn't enabled
 #[cfg(not(feature = "pipewire"))]
-fn get_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+fn get_ports(mut cx: FunctionContext) -> JsResult<JsArray> {
+    let output = JsArray::new(&mut cx, 0);
     if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
         println!("get_ports called but pipewire feature not enabled");
     }
 
-    Ok(cx.undefined())
+    Ok(output)
 }
 
 // create a function "get_output_nodes" in case the feature "pipewire" isn't enabled
 #[cfg(not(feature = "pipewire"))]
-fn get_output_nodes(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+fn get_output_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
+    let output = JsArray::new(&mut cx, 0);
     if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
         println!("get_output_nodes called but pipewire feature not enabled");
     }
 
-    Ok(cx.undefined())
+    Ok(output)
 }
 
 // create a function "get_input_nodes" in case the feature "pipewire" isn't enabled
 #[cfg(not(feature = "pipewire"))]
-fn get_input_nodes(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+fn get_input_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
+    let output = JsArray::new(&mut cx, 0);
     if ENABLE_DEBUG.with(|debug| *debug.borrow()) {
         println!("get_input_nodes called but pipewire feature not enabled");
     }
 
-    Ok(cx.undefined())
+    Ok(output)
 }
 
 // create a function "link_nodes_name_to_id" in case the feature "pipewire" isn't enabled
