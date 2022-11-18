@@ -5,11 +5,20 @@
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "scripts": {
-    "build": "cargo-cp-artifact -nc build/index.node -- cargo build --message-format=json-render-diagnostics",
-    "build-debug": "tsc && npm run build --",
+    "build": "tsc && cargo-cp-artifact -nc build/index.node -- cargo build --message-format=json-render-diagnostics",
+    "build-debug": "npm run build --",
     "build-release": "npm run build -- --release",
-    "install": "npm run build-release",
-    "test": "cargo test"
+    "install": "node-pre-gyp install --fallback-to-build=false || npm run build-release",
+    "test": "cargo test",
+    "package": "node-pre-gyp package",
+    "upload-binary": "npm run build-release && npm run package && node-pre-gyp-github publish --release"
+  },
+  "binary": {
+    "module_name": "index",
+    "host": "https://github.com/kakxem/node-pipewire/releases/download/",
+    "remote_path": "{version}",
+    "package_name": "{node_abi}-{platform}-{arch}.tar.gz",
+    "module_path": "./build"
   },
   "author": "Paul Antonio Almasi <paul.antonio.almasi@gmail.com>",
   "license": "MIT",
@@ -18,9 +27,11 @@
     "@typescript-eslint/eslint-plugin": "^5.42.1",
     "@typescript-eslint/parser": "^5.42.1",
     "eslint": "^8.27.0",
+    "node-pre-gyp-github": "^1.4.4",
     "typescript": "^4.8.4"
   },
   "dependencies": {
+    "@mapbox/node-pre-gyp": "^1.0.10",
     "cargo-cp-artifact": "^0.1"
   },
   "repository": {
