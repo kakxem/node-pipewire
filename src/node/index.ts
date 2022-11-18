@@ -5,10 +5,11 @@ const library = require("./index.node");
 
 export function createPwThread(enableDebug?: boolean) {
   if (enableDebug) {
-    return library.createPwThread(enableDebug);
+    library.createPwThread(enableDebug);
+    return;
   }
 
-  return library.createPwThread();
+  library.createPwThread();
 }
 
 // This feature is not yet implemented in the library
@@ -72,19 +73,19 @@ export function getInputNodes(): PipewireNode[] {
 }
 
 export function linkNodesNameToId(nodeName: string, nodeId: number) {
-  return library.linkNodesNameToId(nodeName, nodeId);
+  library.linkNodesNameToId(nodeName, nodeId);
 }
 
 export function unlinkNodesNameToId(nodeName: string, nodeId: number) {
-  return library.unlinkNodesNameToId(nodeName, nodeId);
+  library.unlinkNodesNameToId(nodeName, nodeId);
 }
 
 export function linkPorts(inputPortId: number, outputPortId: number) {
-  return library.linkPorts(inputPortId, outputPortId);
+  library.linkPorts(inputPortId, outputPortId);
 }
 
 export function unlinkPorts(inputPortId: number, outputPortId: number) {
-  return library.unlinkPorts(inputPortId, outputPortId);
+  library.unlinkPorts(inputPortId, outputPortId);
 }
 
 export function getInputNodesName(): string[] {
