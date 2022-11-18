@@ -44,7 +44,9 @@
     "nodejs"
   ],
   "files": [
-    "build/**",
+    "build/*.d.ts",
+    "build/*.js",
+    "build/*.js.map",
     "src/lib.rs",
     "src/pipewire_thread.rs",
     "Cargo.toml",
