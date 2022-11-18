@@ -4,12 +4,7 @@ import type { PipewireLink, PipewirePort, PipewireNode } from "./types";
 const library = require("./index.node");
 
 export function createPwThread(enableDebug?: boolean) {
-  if (enableDebug) {
-    library.createPwThread(enableDebug);
-    return;
-  }
-
-  library.createPwThread();
+  library.createPwThread(enableDebug);
 }
 
 // This feature is not yet implemented in the library
@@ -19,57 +14,27 @@ export function createPwThread(enableDebug?: boolean) {
 
 export function getLinks(): PipewireLink[] {
   const temp: PipewireLink[] = library.getLinks();
-  const links: PipewireLink[] = [];
-  for (let i = 0; i < temp.length; i++) {
-    if (temp[i].id) {
-      links.push(temp[i]);
-    }
-  }
-  return links;
+  return temp.filter(link => link.id);
 }
 
 export function getPorts(): PipewirePort[] {
   const temp: PipewirePort[] = library.getPorts();
-  const ports: PipewirePort[] = [];
-  for (let i = 0; i < temp.length; i++) {
-    if (temp[i]?.id) {
-      ports.push(temp[i]);
-    }
-  }
-  return ports;
+  return temp.filter(port => port.id);
 }
 
 export function getNodes(): PipewireNode[] {
   const temp: PipewireNode[] = library.getNodes();
-  const nodes: PipewireNode[] = [];
-  for (let i = 0; i < temp.length; i++) {
-    if (temp[i]?.id) {
-      nodes.push(temp[i]);
-    }
-  }
-  return nodes;
+  return temp.filter(node => node.id);
 }
 
 export function getOutputNodes(): PipewireNode[] {
   const temp: PipewireNode[] = library.getOutputNodes();
-  const nodes: PipewireNode[] = [];
-  for (let i = 0; i < temp.length; i++) {
-    if (temp[i]?.id) {
-      nodes.push(temp[i]);
-    }
-  }
-  return nodes;
+  return temp.filter(output => output.id);
 }
 
 export function getInputNodes(): PipewireNode[] {
   const temp = library.getInputNodes();
-  const nodes: PipewireNode[] = [];
-  for (let i = 0; i < temp.length; i++) {
-    if (temp[i]?.id) {
-      nodes.push(temp[i]);
-    }
-  }
-  return nodes;
+  return temp.filter(input => input.id);
 }
 
 export function linkNodesNameToId(nodeName: string, nodeId: number) {
@@ -89,19 +54,9 @@ export function unlinkPorts(inputPortId: number, outputPortId: number) {
 }
 
 export function getInputNodesName(): string[] {
-  const temp: PipewireNode[] = getInputNodes();
-  const nodes: string[] = [];
-  for (let i = 0; i < temp.length; i++) {
-    nodes.push(temp[i]?.name);
-  }
-  return nodes;
+  return getInputNodes().map(input => input.name);
 }
 
 export function getOutputNodesName(): string[] {
-  const temp: PipewireNode[] = getOutputNodes();
-  const nodes: string[] = [];
-  for (let i = 0; i < temp.length; i++) {
-    nodes.push(temp[i]?.name);
-  }
-  return nodes;
+  return getOutputNodes().map(output => output.name);
 }
