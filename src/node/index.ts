@@ -4,7 +4,7 @@ import type { PipewireLink, PipewirePort, PipewireNode } from "./types";
 const library = require("./index.node");
 
 export function createPwThread(enableDebug?: boolean) {
-  library.createPwThread(enableDebug);
+  library.createPwThread(enableDebug ?? false);
 }
 
 // This feature is not yet implemented in the library
