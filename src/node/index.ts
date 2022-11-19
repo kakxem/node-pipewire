@@ -60,3 +60,7 @@ export function getInputNodesName(): string[] {
 export function getOutputNodesName(): string[] {
   return getOutputNodes().map(output => output.name);
 }
+
+export async function waitToNewNode(nodeName: string) {
+  return library.waitToNewNode(nodeName);
+}
