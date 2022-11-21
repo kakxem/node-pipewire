@@ -60,3 +60,7 @@ export function getInputNodesName(): string[] {
 export function getOutputNodesName(): string[] {
   return getOutputNodes().map(output => output.name);
 }
+
+export function waitForNewNode(nodeName: string): Promise<PipewireNode> {
+  return library.waitForNewNode(nodeName);
+}
