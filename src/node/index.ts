@@ -61,6 +61,6 @@ export function getOutputNodesName(): string[] {
   return getOutputNodes().map(output => output.name);
 }
 
-export async function waitToNewNode(nodeName: string) {
-  return library.waitToNewNode(nodeName);
+export function waitForNewNode(nodeName: string): Promise<PipewireNode> {
+  return library.waitForNewNode(nodeName);
 }

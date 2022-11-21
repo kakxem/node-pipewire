@@ -697,7 +697,7 @@ fn get_current_nodes(node_name: String) -> Result<Vec<PipewireNode>, String> {
     Ok(new_nodes)
 }
 
-fn wait_to_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
+fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let rt = runtime(&mut cx)?;
     let node_name = cx.argument::<JsString>(0)?;
     let channel = cx.channel();
@@ -825,6 +825,6 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("unlinkNodesNameToId", unlink_nodes_name_to_id)?;
     cx.export_function("linkPorts", link_ports)?;
     cx.export_function("unlinkPorts", unlink_ports)?;
-    cx.export_function("waitToNewNode", wait_to_new_node)?;
+    cx.export_function("waitForNewNode", wait_for_new_node)?;
     Ok(())
 }
