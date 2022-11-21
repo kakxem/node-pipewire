@@ -98,6 +98,9 @@ linkNodesNameToId(nodeName: string, nodeId: number)
 
 //Unlink all nodes that have the name `nodeName` to the node with the id `nodeId`.
 unlinkNodesNameToId(nodeName: string, nodeId: number)
+
+//Wait for a node to be created.
+waitForNewNode(nodeName: string)
 ```
 
 ## Development
