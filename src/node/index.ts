@@ -1,4 +1,4 @@
-import type { PipewireLink, PipewirePort, PipewireNode } from "./types";
+import type { PipewireLink, PipewirePort, PipewireNode, NodeDirection } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const library = require("./index.node");
@@ -61,6 +61,6 @@ export function getOutputNodesName(): string[] {
   return getOutputNodes().map(output => output.name);
 }
 
-export function waitForNewNode(nodeName: string): Promise<PipewireNode> {
-  return library.waitForNewNode(nodeName);
+export function waitForNewNode(nodeName: string, direction?: NodeDirection, timeout?: number): Promise<PipewireNode> {
+  return library.waitForNewNode(nodeName, direction ?? "Both", timeout ?? 5000);
 }

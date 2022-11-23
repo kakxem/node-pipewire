@@ -7,7 +7,7 @@ use pipewire::registry::Permission;
 use std::{
     cell::RefCell,
     collections::HashMap,
-    sync::{mpsc, Arc, Mutex},
+    sync::{mpsc, Arc, Mutex}, time::Instant,
 };
 use tokio::runtime::Runtime;
 
@@ -682,12 +682,17 @@ fn unlink_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
-fn get_current_nodes(node_name: String) -> Result<Vec<PipewireNode>, String> {
+fn get_current_nodes(
+    node_name: String,
+    node_directions: Vec<String>,
+) -> Result<Vec<PipewireNode>, String> {
     let all_data = ALL_DATA.lock().unwrap();
     let mut new_nodes = Vec::new();
     for data in all_data.iter() {
         if let PipewireData::Node(node) = data.1 {
-            if node.name.contains(node_name.as_str()) {
+            if node.name.contains(node_name.as_str())
+                && node_directions.contains(&node.node_direction)
+            {
                 new_nodes.push(node.clone());
             }
         }
@@ -700,114 +705,139 @@ fn get_current_nodes(node_name: String) -> Result<Vec<PipewireNode>, String> {
 fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let rt = runtime(&mut cx)?;
     let node_name = cx.argument::<JsString>(0)?;
+    let node_direction = cx.argument::<JsString>(1)?;
+    let timeout = cx.argument::<JsNumber>(2)?;
     let channel = cx.channel();
     let (deferred, promise) = cx.promise();
 
     let node_name = node_name.value(&mut cx);
+    let node_direction = node_direction.value(&mut cx);
+    let timeout = timeout.value(&mut cx) as u128;
 
-    let all_data = ALL_DATA.lock().unwrap();
-    // get the actual nodes from the context data
-    let mut nodes = Vec::new();
-    for data in all_data.iter() {
-        if let PipewireData::Node(node) = data.1 {
-            if node.name == node_name {
-                nodes.push(node.clone());
-            }
-        }
+    let mut node_directions = Vec::new();
+    if node_direction == "Input" || node_direction == "Output" {
+        node_directions.push(node_direction);
+    } else {
+        node_directions.push("Input".to_string());
+        node_directions.push("Output".to_string());
     }
-    drop(all_data);
-    // start async task
-    rt.spawn(async move {
-        let mut _node = None;
-        let mut tries = 0;
 
-        loop {
-            // get the actual nodes from the context data
-            let new_nodes = get_current_nodes(node_name.clone()).unwrap();
+    // get the actual nodes from the context data
+    let nodes = get_current_nodes(node_name.clone(), node_directions.clone());
 
-            // check if the length of the nodes is different
-            if (new_nodes.len() > 0) && (new_nodes.len() != nodes.len()) {
-                ENABLE_DEBUG.with(|debug| {
-                    if *debug.borrow() {
-                        println!("Old nodes:");
-                        for node in nodes.iter() {
-                            println!("{} - {}", node.name, node.id);
+    match nodes {
+        Ok(nodes) => {
+            // get the actual time
+            let start_time = Instant::now();
+            // start async task
+            rt.spawn(async move {
+                let mut _node = None;
+        
+                loop {
+                    // get the actual nodes from the context data
+                    let new_nodes = get_current_nodes(node_name.clone(), node_directions.clone()).unwrap();
+        
+                    // check if the length of the nodes is different
+                    if (new_nodes.len() > 0) && (new_nodes.len() != nodes.len()) {
+                        ENABLE_DEBUG.with(|debug| {
+                            if *debug.borrow() {
+                                println!("Old nodes:");
+                                for node in nodes.iter() {
+                                    println!("{} - {}", node.name, node.id);
+                                }
+                                println!("");
+                                println!("New nodes:");
+                                for node in new_nodes.iter() {
+                                    println!("{} - {}", node.name, node.id);
+                                }
+                            }
+                        });
+        
+                        // get the new node compared to the old nodes
+                        for new_node in new_nodes.iter() {
+                            let mut found = false;
+                            for node in nodes.iter() {
+                                if new_node.id == node.id {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if !found {
+                                _node = Some(new_node.clone());
+                                break;
+                            }
                         }
-                        println!("");
-                        println!("New nodes:");
-                        for node in new_nodes.iter() {
-                            println!("{} - {}", node.name, node.id);
+        
+                        if _node.is_some() {
+                            break;
                         }
                     }
+        
+                    // check if the timeout is reached (default 5 seconds)
+                    if start_time.elapsed().as_millis() > timeout {
+                        break;
+                    }
+
+                    // wait 500ms (Maybe this can be changed to a lower value)
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                }
+        
+                // defer the result
+                deferred.settle_with(&channel, move |mut cx_task| match _node {
+                    Some(node) => {
+                        let obj = cx_task.empty_object();
+                        let id = cx_task.number(node.id);
+                        let permissions = cx_task.number(node.permissions.bits() as i32);
+                        let props = cx_task.string(serde_json::to_string(&node.props).unwrap());
+                        let name = cx_task.string(node.name);
+                        let node_direction = cx_task.string(node.node_direction);
+                        let node_type = cx_task.string(node.node_type);
+                        let ports = cx_task.empty_array();
+        
+                        for (i, port) in node.ports.iter().enumerate() {
+                            let port_obj = cx_task.empty_object();
+        
+                            let port_id = cx_task.number(port.id);
+                            let port_permissions = cx_task.number(port.permissions.bits() as i32);
+                            let port_props = cx_task.string(serde_json::to_string(&port.props).unwrap());
+                            let port_node_id = cx_task.number(port.node_id);
+                            let port_name = cx_task.string(port.name.clone());
+                            let port_direction = cx_task.string(port.direction.clone());
+        
+                            port_obj.set(&mut cx_task, "id", port_id).unwrap();
+                            port_obj
+                                .set(&mut cx_task, "permissions", port_permissions)
+                                .unwrap();
+                            port_obj.set(&mut cx_task, "props", port_props).unwrap();
+                            port_obj.set(&mut cx_task, "node_id", port_node_id).unwrap();
+                            port_obj.set(&mut cx_task, "name", port_name).unwrap();
+                            port_obj
+                                .set(&mut cx_task, "direction", port_direction)
+                                .unwrap();
+        
+                            ports.set(&mut cx_task, i as u32, port_obj).unwrap();
+                        }
+        
+                        obj.set(&mut cx_task, "id", id).unwrap();
+                        obj.set(&mut cx_task, "permissions", permissions).unwrap();
+                        obj.set(&mut cx_task, "props", props).unwrap();
+                        obj.set(&mut cx_task, "name", name).unwrap();
+                        obj.set(&mut cx_task, "node_direction", node_direction)
+                            .unwrap();
+                        obj.set(&mut cx_task, "node_type", node_type).unwrap();
+                        obj.set(&mut cx_task, "ports", ports).unwrap();
+        
+                        Ok(obj)
+                    }
+                    None => cx_task.throw_error("No node found"),
                 });
-
-                // check if the last node have ports
-                if new_nodes.last().unwrap().ports.len() > 0 {
-                    _node = Some(new_nodes.last().unwrap().clone());
-                    break;
-                }
-            }
-
-            // check if the tries is bigger than 10
-            // TODO: make this a parameter of the function
-            if tries > 10 {
-                break;
-            }
-            tries += 1;
-            // wait 500ms (Maybe this can be changed to a lower value)
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        }
-
-        // defer the result
-        deferred.settle_with(&channel, move |mut cx_task| match _node {
-            Some(node) => {
-                let obj = cx_task.empty_object();
-                let id = cx_task.number(node.id);
-                let permissions = cx_task.number(node.permissions.bits() as i32);
-                let props = cx_task.string(serde_json::to_string(&node.props).unwrap());
-                let name = cx_task.string(node.name);
-                let node_direction = cx_task.string(node.node_direction);
-                let node_type = cx_task.string(node.node_type);
-                let ports = cx_task.empty_array();
-
-                for (i, port) in node.ports.iter().enumerate() {
-                    let port_obj = cx_task.empty_object();
-
-                    let port_id = cx_task.number(port.id);
-                    let port_permissions = cx_task.number(port.permissions.bits() as i32);
-                    let port_props = cx_task.string(serde_json::to_string(&port.props).unwrap());
-                    let port_node_id = cx_task.number(port.node_id);
-                    let port_name = cx_task.string(port.name.clone());
-                    let port_direction = cx_task.string(port.direction.clone());
-
-                    port_obj.set(&mut cx_task, "id", port_id).unwrap();
-                    port_obj
-                        .set(&mut cx_task, "permissions", port_permissions)
-                        .unwrap();
-                    port_obj.set(&mut cx_task, "props", port_props).unwrap();
-                    port_obj.set(&mut cx_task, "node_id", port_node_id).unwrap();
-                    port_obj.set(&mut cx_task, "name", port_name).unwrap();
-                    port_obj
-                        .set(&mut cx_task, "direction", port_direction)
-                        .unwrap();
-
-                    ports.set(&mut cx_task, i as u32, port_obj).unwrap();
-                }
-
-                obj.set(&mut cx_task, "id", id).unwrap();
-                obj.set(&mut cx_task, "permissions", permissions).unwrap();
-                obj.set(&mut cx_task, "props", props).unwrap();
-                obj.set(&mut cx_task, "name", name).unwrap();
-                obj.set(&mut cx_task, "node_direction", node_direction)
-                    .unwrap();
-                obj.set(&mut cx_task, "node_type", node_type).unwrap();
-                obj.set(&mut cx_task, "ports", ports).unwrap();
-
-                Ok(obj)
-            }
-            None => cx_task.throw_error("No node found"),
-        });
-    });
+            });
+        
+        },
+        Err(_) => {
+            return cx.throw_error("Error getting the nodes"); 
+        } 
+    };
 
     Ok(promise)
 }
