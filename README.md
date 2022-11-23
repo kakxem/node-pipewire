@@ -100,7 +100,7 @@ linkNodesNameToId(nodeName: string, nodeId: number)
 unlinkNodesNameToId(nodeName: string, nodeId: number)
 
 //Wait for a node to be created.
-waitForNewNode(nodeName: string)
+waitForNewNode(nodeName: string, direction?: 'Input' | 'Output' | 'Both', timeout?: number)
 ```
 
 ## Development
