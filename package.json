@@ -1,6 +1,6 @@
 {
   "name": "node-pipewire",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "NodeJS native module written in Rust and Typescript to interact with Pipewire",
   "main": "build/index.js",
   "types": "build/index.d.ts",
