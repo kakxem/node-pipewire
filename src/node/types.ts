@@ -26,3 +26,5 @@ export interface PipewireLink {
   output_node_id: number;
   output_port_id: number;
 }
+
+export type NodeDirection = "Input" | "Output" | "Both";
