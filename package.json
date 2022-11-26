@@ -6,6 +6,7 @@
   "types": "build/index.d.ts",
   "scripts": {
     "build": "tsc && cargo-cp-artifact -nc build/index.node -- cargo build --message-format=json-render-diagnostics",
+    "build:aarch64": "tsc && cross build --target aarch64-unknown-linux-gnu --release && cp target/aarch64-unknown-linux-gnu/release/libnode_pipewire.so build/index.node",
     "build-debug": "npm run build --",
     "build-release": "npm run build -- --release",
     "install": "node-pre-gyp install --fallback-to-build=false || npm run build-release",
