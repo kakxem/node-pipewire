@@ -23,5 +23,8 @@ default-features = false
 features = ["channel-api", "napi-6", "promise-api"]
 
 # Compilation target for the native code
+[package.metadata.cross.target.x86_64-unknown-linux-gnu]
+dockerfile = 'dockerfiles/Dockerfile.x86_64'
+
 [package.metadata.cross.target.aarch64-unknown-linux-gnu]
 dockerfile = 'dockerfiles/Dockerfile.aarch64'
