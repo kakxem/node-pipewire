@@ -6,13 +6,14 @@
   "types": "build/index.d.ts",
   "scripts": {
     "build": "tsc && cargo-cp-artifact -nc build/index.node -- cargo build --message-format=json-render-diagnostics",
-    "build:aarch64": "tsc && cross build --target aarch64-unknown-linux-gnu --release && cp target/aarch64-unknown-linux-gnu/release/libnode_pipewire.so build/index.node",
+    "build-cross": "tsc && cross build --target $TARGET && cp target/$TARGET/release/libnode_pipewire.so build/index.node",
+    "build-cross:release": "tsc && cross build --target $TARGET --release && cp target/$TARGET/release/libnode_pipewire.so build/index.node",
     "build-debug": "npm run build --",
     "build-release": "npm run build -- --release",
     "install": "node-pre-gyp install --fallback-to-build=false || npm run build-release",
     "test": "cargo test",
     "package": "node-pre-gyp package",
-    "upload-binary": "npm run build-release && npm run package && node-pre-gyp-github publish --release"
+    "upload-binary": "./upload-binaries.sh"
   },
   "binary": {
     "module_name": "index",
