@@ -1,10 +1,10 @@
 #!/bin/sh
 
 # create an array that will contain the targets
-target_containers=("x86_64-unknown-linux-gnu" "aarch64-unknown-linux-gnu")
+target_containers=("x86_64-unknown-linux-gnu" "aarch64-unknown-linux-gnu" "arm-unknown-linux-gnueabihf")
 
 # create an array that will contain architectures
-target_archs=("x64" "arm64")
+target_archs=("x64" "arm64" "arm")
 
 # build and package the binaries
 if [ $# -gt 0 ]; then
