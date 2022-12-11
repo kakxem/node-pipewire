@@ -277,3 +277,8 @@ To learn more about Neon, see the [Neon documentation](https://neon-bindings.com
 To learn more about Rust, see the [Rust documentation](https://www.rust-lang.org).
 
 To learn more about Node, see the [Node documentation](https://nodejs.org).
+
+### Contribution
+If you are interested in contributing to this project, please read the [CONTRIBUTING](CONTRIBUTING.md) file for more information.
+
+Thank you for your interest in contributing!
