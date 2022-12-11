@@ -24,8 +24,7 @@ To submit a contribution, follow these steps:
 
 1. Fork the node-pipewire repository on GitHub.
 2. Create a new branch for your contribution.
-3. Make your changes on the new branch.
-  3.1. Remember to update the README.md if it's necessary
+3. Make your changes on the new branch. (Remember to update the README.md if it's necessary)
 5. Commit your changes and push them to your fork.
 6. Open a pull request from your branch to the `master` branch of the node-pipewire repository.
 
