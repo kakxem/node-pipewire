@@ -721,7 +721,7 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
         node_directions.push("Input".to_string());
         node_directions.push("Output".to_string());
     }
-
+    
     // get the actual nodes from the context data
     let nodes = get_current_nodes(node_name.clone(), node_directions.clone());
 
@@ -738,7 +738,7 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                     let new_nodes = get_current_nodes(node_name.clone(), node_directions.clone()).unwrap();
         
                     // check if the length of the nodes is different
-                    if (new_nodes.len() > 0) && (new_nodes.len() != nodes.len()) {
+                    if new_nodes.len() > 0 {
                         ENABLE_DEBUG.with(|debug| {
                             if *debug.borrow() {
                                 println!("Old nodes:");
