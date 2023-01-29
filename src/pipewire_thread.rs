@@ -479,7 +479,7 @@ fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
     // split the input ports into variables, FR and FL. That will contain the ports that will be linked.
     let input_port_fr = input_ports.iter().find(|port| port.name.contains("FR"));
     let input_port_fl = input_ports.iter().find(|port| port.name.contains("FL"));
-    let default_input_port = input_ports.iter().find(|port| port.name.contains("MONO"));
+    let input_port_mono = input_ports.iter().find(|port| port.name.contains("MONO"));
 
     // if the input ports (fr and fl) are found, link every output port (fr and fl) to the input ports (fr and fl)
     if input_port_fr.is_some() && input_port_fl.is_some() {
@@ -489,18 +489,28 @@ fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
         for port in output_ports_fl.iter() {
             link_ports(input_port_fl.unwrap().id, port.id, core);
         }
-    } else if default_input_port.is_some() {
+    } else if input_port_mono.is_some() {
         // if the input ports (fr and fl) are not found, link every output port (fr and fl) to the default input port (mono)
         for port in output_ports_fr.iter() {
-            link_ports(default_input_port.unwrap().id, port.id, core);
+            link_ports(input_port_mono.unwrap().id, port.id, core);
         }
         for port in output_ports_fl.iter() {
-            link_ports(default_input_port.unwrap().id, port.id, core);
+            link_ports(input_port_mono.unwrap().id, port.id, core);
         }
     } else {
         // if the input ports (fr and fl) and the default input port (mono) are not found, print an error.
         if ENABLE_DEBUG.with(|f| *f.borrow()) {
-            println!("ERROR: error at finding input ports");
+            println!("ERROR: error at finding input ports, trying to link in every input port");
+        }
+        for port in output_ports_fr.iter() {
+            for input_port in input_ports.iter() {
+                link_ports(input_port.id, port.id, core);
+            }
+        }
+        for port in output_ports_fl.iter() {
+            for input_port in input_ports.iter() {
+                link_ports(input_port.id, port.id, core);
+            }
         }
     }
 }
@@ -561,7 +571,7 @@ fn unlink_nodes_name_to_id(nodes_name: String, input_node_id: u32, registry: &Re
     // split the input ports into variables, FR and FL. That will contain the ports that will be linked.
     let input_port_fr = input_ports.iter().find(|port| port.name.contains("FR"));
     let input_port_fl = input_ports.iter().find(|port| port.name.contains("FL"));
-    let default_input_port = input_ports.iter().find(|port| port.name.contains("MONO"));
+    let input_port_mono = input_ports.iter().find(|port| port.name.contains("MONO"));
 
     // if the input ports (fr and fl) are found, unlink every output port (fr and fl) to the input ports (fr and fl)
     if input_port_fr.is_some() && input_port_fl.is_some() {
@@ -571,15 +581,20 @@ fn unlink_nodes_name_to_id(nodes_name: String, input_node_id: u32, registry: &Re
         for port in output_ports_fl.iter() {
             unlink_ports(port.id, input_port_fl.unwrap().id, registry);
         }
-    } else if default_input_port.is_some() {
+    } else if input_port_mono.is_some() {
         // if the input ports (fr and fl) are not found, unlink every output port (fr and fl) to the default input port (mono)
         for port in output_ports.iter() {
-            unlink_ports(port.id, default_input_port.unwrap().id, registry);
+            unlink_ports(port.id, input_port_mono.unwrap().id, registry);
         }
     } else {
         // if the input ports (fr and fl) and the default input port (mono) are not found, print an error.
         if ENABLE_DEBUG.with(|f| *f.borrow()) {
-            println!("ERROR: error at finding input ports");
+            println!("ERROR: error at finding input ports, trying to unlink in every input port");
+        }
+        for port in output_ports.iter() {
+            for input_port in input_ports.iter() {
+                unlink_ports(port.id, input_port.id, registry);
+            }
         }
     }
 }
