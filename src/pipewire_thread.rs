@@ -133,9 +133,8 @@ fn save_node(node: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions
     let props = node
         .props
         .as_ref()
-        .expect("ERROR: error at getting node properties")
-        .clone();
-
+        .expect("ERROR: error at getting node properties");
+    
     // create a hashmap that will contain all the properties of the node
     let mut node_props = std::collections::HashMap::new();
 
