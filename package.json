@@ -3,7 +3,6 @@
   "version": "1.0.15",
   "description": "NodeJS native module written in Rust and Typescript to interact with Pipewire",
   "main": "build/index.js",
-  "types": "build/index.d.ts",
   "scripts": {
     "build": "tsc && cargo-cp-artifact -nc build/index.node -- cargo build --message-format=json-render-diagnostics",
     "build-cross": "tsc && cross build --target $TARGET && cp target/$TARGET/release/libnode_pipewire.so build/index.node",

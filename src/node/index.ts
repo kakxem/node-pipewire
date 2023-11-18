@@ -1,6 +1,34 @@
-import type { PipewireLink, PipewirePort, PipewireNode, NodeDirection } from "./types";
+// Typescript definitions for node-pipewire
+interface PipewirePort {
+  id: number;
+  permissions: number;
+  props: string;
+  node_id: number;
+  name: string;
+  direction: string;
+}
 
-export * from "./types";
+interface PipewireNode {
+  id: number;
+  permissions: number;
+  props: string;
+  name: string;
+  node_direction: string;
+  node_type: string;
+  ports: PipewirePort[];
+}
+
+interface PipewireLink {
+  id: number;
+  permissions: number;
+  props: string;
+  input_node_id: number;
+  input_port_id: number;
+  output_node_id: number;
+  output_port_id: number;
+}
+
+type NodeDirection = "Input" | "Output" | "Both";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const library = require("./index.node");
