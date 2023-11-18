@@ -1,5 +1,17 @@
 # node-pipewire
 
+<table>
+  <tr>
+      <td> ⚠️ </td>
+      <td>
+          <p><b>Please note that the type definitions will no longer be included in this repository.</b></p>
+          <p>As a result, you'll need to manually <b>install @types/node-pipewire</b>.</p>
+          <p>This change is due to the fact that if the library is being used in a multi-platform project, it would likely be listed in 'optionalDependencies'. If the library is absent, this ensures the project won't be missing the necessary type definitions.</p>
+          <p>Type definitions are available in the <a href="https://www.npmjs.com/package/@types/node-pipewire">npm registry</a>.</p>
+      </td>
+  </tr>
+</table>
+
 ## Requirements
 
 As said, this module is a native Node.js module. So, if you want to use it, you need to have to compile it. For that, you need to have the following dependencies installed:
@@ -11,24 +23,24 @@ As said, this module is a native Node.js module. So, if you want to use it, you 
 Many distributions have pipewire as audio server by default, but maybe your distro doesn't. You can check if you have pipewire installed by running the following command:
 
 ```bash
-$ pactl info
+pactl info
 ```
 
 If that's the case, you will need to install it manually.
-Fedora (34 and above) and Ubuntu (22.10 and above) has pipewire as default audio server, so you don't need to install it manually. 
+Fedora (34 and above) and Ubuntu (22.10 and above) has pipewire as default audio server, so you don't need to install it manually.
 
 Depending on your linux distribution, you may need to install some other dependencies to compile the module.
 
 Fedora:
 
 ```bash
-$ sudo dnf install pipewire-devel clang
+sudo dnf install pipewire-devel clang
 ```
 
 Ubuntu:
 
 ```bash
-$ sudo apt install build-essential libpipewire-0.3-dev
+sudo apt install build-essential libpipewire-0.3-dev
 ```
   
 If you are using a different distribution, you will need to find the equivalent packages. (If you find them, please open a PR to add them to this README)
@@ -38,7 +50,7 @@ If you are using a different distribution, you will need to find the equivalent 
 First of all, we'll need to install the module:
 
 ```sh
-$ npm install node-pipewire
+npm install node-pipewire
 ```
 
 If you have all the dependencies installed, you should be able to compile the module. If you have any problem, please open an issue.
@@ -110,8 +122,8 @@ This project was bootstrapped by [create-neon](https://www.npmjs.com/package/cre
 Clone the repository:
   
 ```sh
-  $ git clone https://github.com/kakxem/node-pipewire.git
-  $ cd node-pipewire
+  git clone https://github.com/kakxem/node-pipewire.git
+  cd node-pipewire
 ```
 
 ### Installing node-pipewire
@@ -121,7 +133,7 @@ Installing node-pipewire requires a [supported version of Node and Rust](https:/
 You can install the project with npm. In the project directory, run:
 
 ```sh
-$ npm install
+npm install
 ```
 
 This fully installs the project, including installing any dependencies and running the build.
@@ -131,7 +143,7 @@ This fully installs the project, including installing any dependencies and runni
 If you have already installed the project and only want to run the build, run:
 
 ```sh
-$ npm run build
+npm run build
 ```
 
 This command uses the [cargo-cp-artifact](https://github.com/neon-bindings/cargo-cp-artifact) utility to run the Rust build and copy the built library into `./index.node`.
@@ -279,6 +291,7 @@ To learn more about Rust, see the [Rust documentation](https://www.rust-lang.org
 To learn more about Node, see the [Node documentation](https://nodejs.org).
 
 ### Contribution
+
 If you are interested in contributing to this project, please read the [CONTRIBUTING](CONTRIBUTING.md) file for more information.
 
 Thank you for your interest in contributing!
