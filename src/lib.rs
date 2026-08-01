@@ -3,7 +3,7 @@ mod pipewire_thread;
 use lazy_static::lazy_static;
 use neon::prelude::*;
 use once_cell::sync::OnceCell;
-use pipewire::registry::Permission;
+use pipewire::permissions::PermissionFlags;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -14,7 +14,7 @@ use tokio::runtime::Runtime;
 #[derive(Clone, Debug)]
 pub struct PipewirePort {
     pub id: u32,
-    pub permissions: Permission,
+    pub permissions: PermissionFlags,
     pub props: HashMap<String, String>,
     pub node_id: u32,
     pub name: String,
@@ -45,7 +45,7 @@ impl PipewirePort {
 #[derive(Clone, Debug)]
 pub struct PipewireNode {
     pub id: u32,
-    pub permissions: Permission,
+    pub permissions: PermissionFlags,
     pub props: HashMap<String, String>,
     pub name: String,
     pub node_direction: String,
@@ -85,7 +85,7 @@ impl PipewireNode {
 #[derive(Clone, Debug)]
 pub struct PipewireLink {
     pub id: u32,
-    pub permissions: Permission,
+    pub permissions: PermissionFlags,
     pub props: HashMap<String, String>,
     pub input_node_id: u32,
     pub input_port_id: u32,
@@ -130,7 +130,7 @@ enum MainOptions {
     // Create a node.
     CreateNode {
         id: u32,
-        permissions: Permission,
+        permissions: PermissionFlags,
         props: HashMap<String, String>,
         name: String,
         node_direction: String,
@@ -139,7 +139,7 @@ enum MainOptions {
     // Create a port.
     CreatePort {
         id: u32,
-        permissions: Permission,
+        permissions: PermissionFlags,
         props: HashMap<String, String>,
         node_id: u32,
         name: String,
@@ -148,7 +148,7 @@ enum MainOptions {
     // Create a link.
     CreateLink {
         id: u32,
-        permissions: Permission,
+        permissions: PermissionFlags,
         props: HashMap<String, String>,
         input_node: u32,
         output_node: u32,

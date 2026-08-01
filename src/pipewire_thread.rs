@@ -1,12 +1,6 @@
 use crate::{MainOptions, PipewireData, PipewireOptions, ALL_DATA};
 use pipewire::{
-    link::Link,
-    prelude::*,
-    properties,
-    registry::{GlobalObject, Registry},
-    spa::ForeignDict,
-    types::ObjectType,
-    Context, Core, MainLoop,
+    context::ContextRc, core::Core, link::Link, main_loop::MainLoopRc, properties::properties, registry::{GlobalObject, Registry}, spa::utils::dict::DictRef, types::ObjectType,
 };
 
 use std::{cell::RefCell, sync::mpsc};
@@ -21,22 +15,21 @@ pub(super) fn pw_thread(
     enable_debug: bool,
 ) {
     // Basic setup of pipewire thread
-    let mainloop = MainLoop::new().expect("ERROR: error at creating mainloop");
-    let context = Context::new(&mainloop).expect("ERROR: error at creating context");
+    let mainloop = MainLoopRc::new(None).expect("ERROR: error at creating mainloop");
+    let context = ContextRc::new(&mainloop, None).expect("ERROR: error at creating context");
     let core = context
-        .connect(None)
+        .connect_rc(None)
         .expect("ERROR: error at connecting context");
 
     let registry = core
-        .get_registry()
+        .get_registry_rc()
         .expect("ERROR: error at getting registry");
 
     // Listen the pw_receiver the options from "PipewireOptions" struct
-    let _receiver = pw_receiver.attach(&mainloop, {
+    let _receiver = pw_receiver.attach(&mainloop.loop_(), {
         let mainloop = mainloop.clone();
-        let core = core.clone();
         let registry = core
-            .get_registry()
+            .get_registry_rc()
             .expect("ERROR: error at getting registry");
         move |msg| match msg {
             PipewireOptions::CloseThread => {
@@ -125,7 +118,7 @@ pub(super) fn pw_thread(
 }
 
 // Create a node and send it to the front.
-fn save_node(node: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions>) {
+fn save_node(node: &GlobalObject<&DictRef>, sender: &mpsc::Sender<MainOptions>) {
     // println!("Node: {:?}", node);
 
     let id = node.id;
@@ -201,7 +194,7 @@ fn save_node(node: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions
 }
 
 // Create a port and send it to the front.
-fn save_port(port: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions>) {
+fn save_port(port: &GlobalObject<&DictRef>, sender: &mpsc::Sender<MainOptions>) {
     // println!("Port: {:?}", port);
 
     let id = port.id;
@@ -258,7 +251,7 @@ fn save_port(port: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions
 }
 
 // Create or modify link and send it to the front.
-fn save_link(link: &GlobalObject<ForeignDict>, sender: &mpsc::Sender<MainOptions>) {
+fn save_link(link: &GlobalObject<&DictRef>, sender: &mpsc::Sender<MainOptions>) {
     // println!("Link: {:?}", link);
 
     let sender = sender.clone();
@@ -359,7 +352,7 @@ fn link_ports(input_port_id: u32, output_port_id: u32, core: &Core) {
         .expect("ERROR: error at getting output port");
 
     // Create the link.
-    core.create_object::<Link, _>(
+    core.create_object::<Link>(
         // The actual name for a link factory might be different for your system,
         // you should probably obtain a factory from the registry.
         "link-factory",
