@@ -182,6 +182,16 @@ enum PipewireOptions {
         output_nodes_name: String,
         input_node_id: u32,
     },
+    CreateSource {
+        source_name: String,
+        audio_position: String,
+        channel_count: u32,
+    },
+    CreateSink {
+        sink_name: String,
+        audio_position: String,
+        channel_count: u32,
+    }
 }
 
 // create a global variable with RefCell to store all the data we need
@@ -842,6 +852,60 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
     Ok(promise)
 }
 
+fn create_source(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let new_source_name = cx.argument::<JsString>(0)?;
+    let new_audio_position = cx.argument::<JsString>(1)?;
+    let new_channel_count = cx.argument::<JsNumber>(2)?;
+
+    let new_source_name = new_source_name.value(&mut cx);
+    let new_audio_position = new_audio_position.value(&mut cx);
+    let new_channel_count = new_channel_count.value(&mut cx) as u32;
+
+    // get the pw_sender from the context data
+    let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
+        pw_sender
+            .borrow_mut()
+            .take()
+            .expect("pw_sender not set in context data")
+    });
+
+    let _ = temp_pw_sender.send(PipewireOptions::CreateSource { source_name: new_source_name, audio_position: new_audio_position, channel_count: new_channel_count  });
+
+    // put the pw_sender back in the context data
+    PW_SENDER.with(|pw_sender| {
+        pw_sender.borrow_mut().replace(temp_pw_sender);
+    });
+
+    Ok(cx.undefined())
+}
+
+fn create_sink(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let new_sink_name = cx.argument::<JsString>(0)?;
+    let new_audio_position = cx.argument::<JsString>(1)?;
+    let new_channel_count = cx.argument::<JsNumber>(2)?;
+
+    let new_sink_name = new_sink_name.value(&mut cx);
+    let new_audio_position = new_audio_position.value(&mut cx);
+    let new_channel_count = new_channel_count.value(&mut cx) as u32;
+
+    // get the pw_sender from the context data
+    let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
+        pw_sender
+            .borrow_mut()
+            .take()
+            .expect("pw_sender not set in context data")
+    });
+
+    let _ = temp_pw_sender.send(PipewireOptions::CreateSink { sink_name: new_sink_name, audio_position: new_audio_position, channel_count: new_channel_count });
+
+    // put the pw_sender back in the context data
+    PW_SENDER.with(|pw_sender| {
+        pw_sender.borrow_mut().replace(temp_pw_sender);
+    });
+
+    Ok(cx.undefined())
+}
+
 #[neon::main]
 fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("createPwThread", create_pw_thread)?;
@@ -856,5 +920,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("linkPorts", link_ports)?;
     cx.export_function("unlinkPorts", unlink_ports)?;
     cx.export_function("waitForNewNode", wait_for_new_node)?;
+    cx.export_function("createSource", create_source)?;
+    cx.export_function("createSink", create_sink)?;
     Ok(())
 }

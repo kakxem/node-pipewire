@@ -30,6 +30,8 @@ interface PipewireLink {
 
 type NodeDirection = "Input" | "Output" | "Both";
 
+type AudioPosition = "FL" | "FR" | "FC" | "LFE" | "RL" | "RR" | "SL" | "SR";
+
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const library = require("./index.node");
 
@@ -93,4 +95,12 @@ export function getOutputNodesName(): string[] {
 
 export function waitForNewNode(nodeName: string, direction?: NodeDirection, timeout?: number): Promise<PipewireNode> {
   return library.waitForNewNode(nodeName, direction ?? "Both", timeout ?? 5000);
+}
+
+export function createSource(newSourceName: string, audioPositions: AudioPosition[]) {
+  return library.createSource(newSourceName, audioPositions.join(","), audioPositions.length);
+}
+
+export function createSink(newSinkName: string, audioPositions: AudioPosition[]) {
+  return library.createSink(newSinkName, audioPositions.join(","), audioPositions.length);
 }

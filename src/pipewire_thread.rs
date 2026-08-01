@@ -1,9 +1,9 @@
 use crate::{MainOptions, PipewireData, PipewireOptions, ALL_DATA};
 use pipewire::{
-    context::ContextRc, core::Core, link::Link, main_loop::MainLoopRc, properties::properties, registry::{GlobalObject, Registry}, spa::utils::dict::DictRef, types::ObjectType,
+    context::ContextRc, core::Core, link::Link, main_loop::MainLoopRc, node::Node, properties::properties, proxy::{Proxy, ProxyT}, registry::{GlobalObject, Registry}, spa::utils::dict::DictRef, types::ObjectType,
 };
 
-use std::{cell::RefCell, sync::mpsc};
+use std::{cell::RefCell, sync::{Arc, mpsc, Mutex}};
 
 thread_local! {
     static ENABLE_DEBUG: RefCell<bool> = RefCell::new(false);
@@ -14,6 +14,9 @@ pub(super) fn pw_thread(
     pw_receiver: pipewire::channel::Receiver<PipewireOptions>,
     enable_debug: bool,
 ) {
+    // Proxy cache to prevent destruction of elements while thread is running
+    let proxies: Arc<Mutex<Vec<Proxy>>> = Arc::new(Mutex::new(Vec::new()));
+
     // Basic setup of pipewire thread
     let mainloop = MainLoopRc::new(None).expect("ERROR: error at creating mainloop");
     let context = ContextRc::new(&mainloop, None).expect("ERROR: error at creating context");
@@ -80,6 +83,22 @@ pub(super) fn pw_thread(
                 }
                 unlink_ports(input_port, output_port, &registry);
             }
+            PipewireOptions::CreateSource { source_name, audio_position, channel_count } => {
+                if enable_debug {
+                    println!("Creating virtual source named {:?} with position {:?}", source_name, audio_position);
+                }
+                let source = create_source(source_name, audio_position, channel_count, &core);
+                let mut p = proxies.lock().unwrap();
+                p.push(source.upcast());
+            },
+            PipewireOptions::CreateSink { sink_name, audio_position, channel_count } => {
+                if enable_debug {
+                    println!("Creating virtual sink named {:?} with position {:?}", sink_name, audio_position);
+                }
+                let sink = create_sink(sink_name, audio_position, channel_count, &core);
+                let mut p = proxies.lock().unwrap();
+                p.push(sink.upcast());
+            },
         }
     });
 
@@ -587,6 +606,128 @@ fn unlink_nodes_name_to_id(nodes_name: String, input_node_id: u32, registry: &Re
             for input_port in input_ports.iter() {
                 unlink_ports(port.id, input_port.id, registry);
             }
+        }
+    }
+}
+
+fn create_source(source_name: String, audio_position: String, channel_count: u32, core: &Core) -> Node {
+    return core.create_object::<Node>(&"adapter", &properties!{
+        "media.class" => "Audio/Source/Virtual",
+        "node.name" => source_name,
+        "audio.position" => audio_position,
+        "audio.channels" => channel_count.to_string(),
+        "factory.name" => "support.null-audio-sink",
+    }).expect("error creating virtual source");
+
+    
+}
+
+fn create_sink(sink_name: String, audio_position: String, channel_count: u32, core: &Core) -> Node {
+    return core.create_object::<Node>(&"adapter", &properties!{
+        "media.class" => "Audio/Sink/Virtual",
+        "node.name" => sink_name,
+        "audio.position" => audio_position,
+        "audio.channels" => channel_count.to_string(),
+        "factory.name" => "support.null-audio-sink",
+    }).expect("error creating virtual sink");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::rc::Rc;
+    use std::cell::Cell;
+    use pipewire::core::PW_ID_CORE;
+    use pipewire::proxy::ProxyT;
+use pipewire::registry::RegistryRc;
+    use std::thread;
+    use std::time::Duration;
+
+    #[test]
+    fn create_sink_can_create_sink() {
+        let mainloop = MainLoopRc::new(None).expect("ERROR: error at creating mainloop");
+        let context = ContextRc::new(&mainloop, None).expect("ERROR: error at creating context");
+        let core = context
+            .connect_rc(None)
+            .expect("ERROR: error at connecting context");
+
+        let registry = core
+            .get_registry_rc()
+            .expect("ERROR: error at getting registry");
+
+        roundtrip(&mainloop, &core, &registry);
+        roundtrip(&mainloop, &core, &registry);
+        roundtrip(&mainloop, &core, &registry);
+
+        let sink = create_sink("test-sink".to_string(), "FL,FR".to_string(), 2, &core);
+
+        sink.upcast();
+
+        println!();
+
+        roundtrip(&mainloop, &core, &registry);
+        thread::sleep(Duration::from_secs(30))
+    }
+
+    #[test]
+    fn create_source_can_create_source() {
+        let mainloop = MainLoopRc::new(None).expect("ERROR: error at creating mainloop");
+        let context = ContextRc::new(&mainloop, None).expect("ERROR: error at creating context");
+        let core = context
+            .connect_rc(None)
+            .expect("ERROR: error at connecting context");
+
+        let registry = core
+            .get_registry_rc()
+            .expect("ERROR: error at getting registry");
+
+        roundtrip(&mainloop, &core, &registry);
+        roundtrip(&mainloop, &core, &registry);
+        roundtrip(&mainloop, &core, &registry);
+
+        create_source("test-source".to_string(), "FL,FR".to_string(), 2, &core);
+
+        println!();
+
+        roundtrip(&mainloop, &core, &registry);
+        thread::sleep(Duration::from_secs(30))
+    }
+
+    fn roundtrip(mainloop: &MainLoopRc, core: &Core, registry: &RegistryRc) {
+        // To comply with Rust's safety rules, we wrap this variable in an `Rc` and  a `Cell`.
+        let done = Rc::new(Cell::new(false));
+
+        // Create new reference for each variable so that they can be moved into the closure.
+        let done_clone = done.clone();
+        let loop_clone = mainloop.clone();
+
+        // Trigger the sync event. The server's answer won't be processed until we start the main loop,
+        // so we can safely do this before setting up a callback. This lets us avoid using a Cell.
+        let pending = core.sync(0).expect("sync failed");
+
+        let _listener_registry = registry.add_listener_local().global({
+            move |object| match object.type_ {
+                ObjectType::Node => println!("{:?}", object),
+                ObjectType::Link => println!("{:?}", object),
+                ObjectType::Port => println!("{:?}", object),
+                _ => {
+                    // Ignore other types.
+                }
+            }
+        }).register();
+
+        let _listener_core = core
+            .add_listener_local()
+            .done(move |id, seq| {
+                if id == PW_ID_CORE && seq == pending {
+                    done_clone.set(true);
+                    loop_clone.quit();
+                }
+            })
+            .register();
+
+        while !done.get() {
+            mainloop.run();
         }
     }
 }
