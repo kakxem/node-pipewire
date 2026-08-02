@@ -2,7 +2,7 @@
 interface PipewirePort {
   id: number;
   permissions: number;
-  props: string;
+  props: Record<string, string>;
   node_id: number;
   name: string;
   direction: string;
@@ -11,7 +11,7 @@ interface PipewirePort {
 interface PipewireNode {
   id: number;
   permissions: number;
-  props: string;
+  props: Record<string, string>;
   name: string;
   node_direction: string;
   node_type: string;
@@ -21,7 +21,7 @@ interface PipewireNode {
 interface PipewireLink {
   id: number;
   permissions: number;
-  props: string;
+  props: Record<string, string>;
   input_node_id: number;
   input_port_id: number;
   output_node_id: number;

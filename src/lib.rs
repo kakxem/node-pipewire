@@ -28,10 +28,16 @@ impl PipewirePort {
 
         let js_id = cx.number(self.id);
         let js_permissions = cx.number(self.permissions.bits() as i32);
-        let js_props = cx.string(serde_json::to_string(&self.props).unwrap());
         let js_node_id = cx.number(self.node_id as i32);
         let js_name = cx.string(self.name.clone());
         let js_direction = cx.string(self.direction.clone());
+
+        let js_props = cx.empty_object();
+        for entry in &self.props {
+            let prop = cx.string(entry.1);
+            let key = entry.0.as_str();
+            js_props.set(cx, key, prop)?;
+        }
 
         obj.set(cx, "id", js_id)?;
         obj.set(cx, "permissions", js_permissions)?;
@@ -43,6 +49,7 @@ impl PipewirePort {
         Ok(obj)
     }
 }
+
 #[derive(Clone, Debug)]
 pub struct PipewireNode {
     pub id: u32,
@@ -60,7 +67,6 @@ impl PipewireNode {
 
         let js_id = cx.number(self.id);
         let js_permissions = cx.number(self.permissions.bits() as i32);
-        let js_props = cx.string(serde_json::to_string(&self.props).unwrap());
         let js_name = cx.string(self.name.clone());
         let js_node_direction = cx.string(self.node_direction.clone());
         let js_node_type = cx.string(self.node_type.clone());
@@ -69,6 +75,13 @@ impl PipewireNode {
         for (i, port) in self.ports.iter().enumerate() {
             let js_port = port.to_object(cx)?;
             js_ports.set(cx, i as u32, js_port)?;
+        }
+
+        let js_props = cx.empty_object();
+        for entry in &self.props {
+            let prop = cx.string(entry.1);
+            let key = entry.0.as_str();
+            js_props.set(cx, key, prop)?;
         }
 
         obj.set(cx, "id", js_id)?;
@@ -100,11 +113,17 @@ impl PipewireLink {
 
         let js_id = cx.number(self.id);
         let js_permissions = cx.number(self.permissions.bits() as i32);
-        let js_props = cx.string(serde_json::to_string(&self.props).unwrap());
         let js_input_node_id = cx.number(self.input_node_id as i32);
         let js_input_port_id = cx.number(self.input_port_id as i32);
         let js_output_node_id = cx.number(self.output_node_id as i32);
         let js_output_port_id = cx.number(self.output_port_id as i32);
+
+        let js_props = cx.empty_object();
+        for entry in &self.props {
+            let prop = cx.string(entry.1);
+            let key = entry.0.as_str();
+            js_props.set(cx, key, prop)?;
+        }
 
         obj.set(cx, "id", js_id)?;
         obj.set(cx, "permissions", js_permissions)?;
