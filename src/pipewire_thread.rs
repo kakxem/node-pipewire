@@ -153,6 +153,7 @@ pub(super) fn pw_thread(
                 ObjectType::Node => save_node(object, &sender),
                 ObjectType::Port => save_port(object, &sender),
                 ObjectType::Link => save_link(object, &sender),
+                ObjectType::Client => save_client(object, &sender),
                 _ => {
                     // Ignore other types.
                 }
@@ -379,6 +380,62 @@ fn save_link(link: &GlobalObject<&DictRef>, sender: &mpsc::Sender<MainOptions>) 
                 output_port,
                 input_node,
                 input_port,
+            })
+            .expect("ERROR: error at sending option to front");
+    }
+}
+
+// Create or modify client and send it to the front.
+fn save_client(client: &GlobalObject<&DictRef>, sender: &mpsc::Sender<MainOptions>) {
+    // println!("Client: {:?}", client);
+
+    let sender = sender.clone();
+    let all_data = ALL_DATA.lock().unwrap();
+
+    let id = client.id;
+    let permissions = client.permissions;
+    let props = client
+        .props
+        .as_ref()
+        .expect("ERROR: error at getting client properties");
+
+    // create a hashmap that will contain all the properties of the client
+    let mut client_props = std::collections::HashMap::new();
+
+    // iterate over the properties and add them to the vector
+    for (key, value) in props.iter() {
+        client_props.insert(key.to_string(), value.to_string());
+    }
+
+    // From enum all_data, get only the PipewireData::Client
+    let mut clients = Vec::new();
+    for data in all_data.iter() {
+        if let PipewireData::Client(client) = data.1 {
+            clients.push(client.clone());
+        }
+    }
+    drop(all_data);
+
+    // Check if the client exists, if not create it.
+    if !clients.iter().any(|client| client.id == id) {
+        let pid: u32 = props
+            .get("pipewire.sec.pid")
+            .expect("ERROR: error at getting pid")
+            .parse()
+            .expect("ERROR: error at parsing pid");
+        let application_name: String = props
+            .get("application.name")
+            .expect("ERROR: error at getting pid")
+            .to_string();
+
+        // Send the client to the front.
+        sender
+            .send(MainOptions::CreateClient {
+                id,
+                permissions,
+                pid,
+                application_name,
+                props: client_props,
             })
             .expect("ERROR: error at sending option to front");
     }
@@ -707,4 +764,67 @@ fn create_sink(
             },
         )
         .expect("error creating virtual sink");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pipewire::core::PW_ID_CORE;
+    use pipewire::registry::RegistryRc;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    #[test]
+    fn do_roundtrip() {
+        let mainloop = MainLoopRc::new(None).expect("ERROR: error at creating mainloop");
+        let context = ContextRc::new(&mainloop, None).expect("ERROR: error at creating context");
+        let core = context
+            .connect_rc(None)
+            .expect("ERROR: error at connecting context");
+
+        let registry = core
+            .get_registry_rc()
+            .expect("ERROR: error at getting registry");
+
+        roundtrip(&mainloop, &core, &registry);
+    }
+
+    fn roundtrip(mainloop: &MainLoopRc, core: &Core, registry: &RegistryRc) {
+        // To comply with Rust's safety rules, we wrap this variable in an `Rc` and  a `Cell`.
+        let done = Rc::new(Cell::new(false));
+
+        // Create new reference for each variable so that they can be moved into the closure.
+        let done_clone = done.clone();
+        let loop_clone = mainloop.clone();
+
+        // Trigger the sync event. The server's answer won't be processed until we start the main loop,
+        // so we can safely do this before setting up a callback. This lets us avoid using a Cell.
+        let pending = core.sync(0).expect("sync failed");
+
+        let _listener_registry = registry
+            .add_listener_local()
+            .global({
+                move |object| match object.type_ {
+                    ObjectType::Client => println!("{:?}", object),
+                    _ => {
+                        // Ignore other types.
+                    }
+                }
+            })
+            .register();
+
+        let _listener_core = core
+            .add_listener_local()
+            .done(move |id, seq| {
+                if id == PW_ID_CORE && seq == pending {
+                    done_clone.set(true);
+                    loop_clone.quit();
+                }
+            })
+            .register();
+
+        while !done.get() {
+            mainloop.run();
+        }
+    }
 }

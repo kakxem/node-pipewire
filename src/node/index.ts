@@ -28,9 +28,18 @@ interface PipewireLink {
   output_port_id: number;
 }
 
+interface PipewireClient {
+  id: number;
+  permissions: number;
+  pid: number;
+  application_name: string;
+  props: Record<string, string>;
+}
+
 type NodeDirection = "Input" | "Output" | "Both";
 
-type AudioPosition = "FL" | "FR" | "FC" | "LFE" | "RL" | "RR" | "SL" | "SR";
+// Surround is not yet implemented in the library
+type AudioPosition = "FL" | "FR";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const library = require("./index.node");
@@ -57,6 +66,11 @@ export function getPorts(): PipewirePort[] {
 export function getNodes(): PipewireNode[] {
   const temp: PipewireNode[] = library.getNodes();
   return temp.filter(node => node.id);
+}
+
+export function getClients(): PipewireClient[] {
+  const temp: PipewireClient[] = library.getClients();
+  return temp.filter(client => client.id);
 }
 
 export function getOutputNodes(): PipewireNode[] {

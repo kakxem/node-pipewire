@@ -137,12 +137,48 @@ impl PipewireLink {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct PipewireClient {
+    pub id: u32,
+    pub permissions: PermissionFlags,
+    pub pid: u32,
+    pub application_name: String,
+    pub props: HashMap<String, String>,
+}
+
+impl PipewireClient {
+    fn to_object<'a>(&self, cx: &mut Cx<'a>) -> JsResult<'a, JsObject> {
+        let obj = cx.empty_object();
+
+        let js_id = cx.number(self.id);
+        let js_permissions = cx.number(self.permissions.bits() as i32);
+        let js_pid = cx.number(self.pid as i32);
+        let js_application_name = cx.string(self.application_name.clone());
+
+        let js_props = cx.empty_object();
+        for entry in &self.props {
+            let prop = cx.string(entry.1);
+            let key = entry.0.as_str();
+            js_props.set(cx, key, prop)?;
+        }
+
+        obj.set(cx, "id", js_id)?;
+        obj.set(cx, "permissions", js_permissions)?;
+        obj.set(cx, "pid", js_pid)?;
+        obj.set(cx, "props", js_props)?;
+        obj.set(cx, "application_name", js_application_name)?;
+
+        Ok(obj)
+    }
+}
+
 // create an enum that will contain all the data we need to store
 #[derive(Clone, Debug)]
 pub enum PipewireData {
     Link(PipewireLink),
     Port(PipewirePort),
     Node(PipewireNode),
+    Client(PipewireClient),
 }
 
 // Create an enum with all the options that are available to send in front. (Pipewire thread -> Front)
@@ -175,6 +211,15 @@ enum MainOptions {
         input_port: u32,
         output_port: u32,
     },
+    // Create a client.
+    CreateClient {
+        id: u32,
+        permissions: PermissionFlags,
+        pid: u32,
+        application_name: String,
+        props: HashMap<String, String>,
+    },
+
     // Delete item (node, port, link).
     DeleteItem {
         id: u32,
@@ -382,6 +427,35 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                     }),
                 );
             }
+            MainOptions::CreateClient {
+                id,
+                permissions,
+                pid,
+                application_name,
+                props,
+            } => {
+                if enable_debug {
+                    println!(
+                        "{} + Client added: id: {}, pid: {}, application_name: {}",
+                        num_changes, id, pid, application_name,
+                    );
+                }
+                num_changes += 1;
+
+                // add link to ALL_DATA
+                let mut all_data = ALL_DATA.lock().unwrap();
+
+                all_data.insert(
+                    id,
+                    PipewireData::Client(PipewireClient {
+                        id,
+                        permissions,
+                        pid,
+                        application_name,
+                        props,
+                    }),
+                );
+            }
             MainOptions::DeleteItem { id } => {
                 // remove item from ALL_DATA
                 let mut all_data = ALL_DATA.lock().unwrap();
@@ -404,6 +478,12 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                             }
                             PipewireData::Link(link) => {
                                 println!("{} - Removing link: id: {}, node_from: {}, port_from: {}, node_to: {}, port_to: {}", num_changes, link.id, link.input_node_id, link.input_port_id, link.output_node_id, link.output_port_id);
+                            }
+                            PipewireData::Client(client) => {
+                                println!(
+                                    "{} - Removing client: id: {}, pid: {}, application_name: {}",
+                                    num_changes, client.id, client.pid, client.application_name
+                                );
                             }
                         }
                     } else {
@@ -515,6 +595,30 @@ fn get_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
                 // if js_node result is Ok, add it to the output array
                 if let Ok(js_node) = js_node {
                     output.set(&mut cx, counter, js_node).unwrap();
+                    counter += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(output)
+}
+
+fn get_clients(mut cx: FunctionContext) -> JsResult<JsArray> {
+    let output = JsArray::new(&mut cx, 0);
+
+    let all_data = ALL_DATA.lock().unwrap();
+
+    let mut counter = 0;
+    // From all_data, get all clients and add them to the output array
+    for (_, data) in all_data.iter() {
+        match data {
+            PipewireData::Client(client) => {
+                let js_client = client.to_object(&mut cx);
+
+                // if js_client result is Ok, add it to the output array
+                if let Ok(js_client) = js_client {
+                    output.set(&mut cx, counter, js_client).unwrap();
                     counter += 1;
                 }
             }
@@ -916,6 +1020,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("getLinks", get_links)?;
     cx.export_function("getPorts", get_ports)?;
     cx.export_function("getNodes", get_nodes)?;
+    cx.export_function("getClients", get_clients)?;
     cx.export_function("getOutputNodes", get_output_nodes)?;
     cx.export_function("getInputNodes", get_input_nodes)?;
     cx.export_function("linkNodesNameToId", link_nodes_name_to_id)?;
