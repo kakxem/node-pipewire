@@ -117,10 +117,10 @@ unlinkNodesNameToId(nodeName: string, nodeId: number)
 //Wait for a node to be created.
 waitForNewNode(nodeName: string, direction?: 'Input' | 'Output' | 'Both', timeout?: number)
 
-//Create a new source. If permanent is false, the link will become disconnected after the PwThread closes.
+//Create a new source. If permanent is false, the node will be deleted after the PwThread closes.
 createSource(sourceName: string, audioPositions: AudioPosition[], permanent = false)
 
-//Create a new sink. If permanent is false, the link will become disconnected after the PwThread closes.
+//Create a new sink. If permanent is false, the node will be deleted after the PwThread closes.
 createSink(sourceName: string, audioPositions: AudioPosition[], permanent = false)
 ```
 
