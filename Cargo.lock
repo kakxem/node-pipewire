@@ -205,12 +205,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itoa"
-version = "1.0.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
-
-[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -351,7 +345,6 @@ dependencies = [
  "neon",
  "once_cell",
  "pipewire",
- "serde_json",
  "tokio",
 ]
 
@@ -509,12 +502,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ryu"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ad4cc8da4ef723ed60bced201181d83791ad433213d8c24efffda1eec85d741"
-
-[[package]]
 name = "semver"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -525,15 +512,6 @@ name = "send_wrapper"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
-
-[[package]]
-name = "serde"
-version = "1.0.229"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
-dependencies = [
- "serde_core",
-]
 
 [[package]]
 name = "serde_core"
@@ -553,17 +531,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.3",
-]
-
-[[package]]
-name = "serde_json"
-version = "1.0.108"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d1c7e3eac408d115102c4c24ad393e0821bb3a5df4d506a80f85f7a742a526b"
-dependencies = [
- "itoa",
- "ryu",
- "serde",
 ]
 
 [[package]]

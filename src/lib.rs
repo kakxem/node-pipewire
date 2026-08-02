@@ -23,7 +23,7 @@ pub struct PipewirePort {
 }
 
 impl PipewirePort {
-    fn to_object<'a>(&self, cx: &mut FunctionContext<'a>) -> JsResult<'a, JsObject> {
+    fn to_object<'a>(&self, cx: &mut Cx<'a>) -> JsResult<'a, JsObject> {
         let obj = cx.empty_object();
 
         let js_id = cx.number(self.id);
@@ -62,7 +62,7 @@ pub struct PipewireNode {
 }
 
 impl PipewireNode {
-    fn to_object<'a>(&self, cx: &mut FunctionContext<'a>) -> JsResult<'a, JsObject> {
+    fn to_object<'a>(&self, cx: &mut Cx<'a>) -> JsResult<'a, JsObject> {
         let obj = cx.empty_object();
 
         let js_id = cx.number(self.id);
@@ -108,7 +108,7 @@ pub struct PipewireLink {
 }
 
 impl PipewireLink {
-    fn to_object<'a>(&self, cx: &mut FunctionContext<'a>) -> JsResult<'a, JsObject> {
+    fn to_object<'a>(&self, cx: &mut Cx<'a>) -> JsResult<'a, JsObject> {
         let obj = cx.empty_object();
 
         let js_id = cx.number(self.id);
@@ -826,49 +826,7 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                 // defer the result
                 deferred.settle_with(&channel, move |mut cx_task| match _node {
                     Some(node) => {
-                        let obj = cx_task.empty_object();
-                        let id = cx_task.number(node.id);
-                        let permissions = cx_task.number(node.permissions.bits() as i32);
-                        let props = cx_task.string(serde_json::to_string(&node.props).unwrap());
-                        let name = cx_task.string(node.name);
-                        let node_direction = cx_task.string(node.node_direction);
-                        let node_type = cx_task.string(node.node_type);
-                        let ports = cx_task.empty_array();
-
-                        for (i, port) in node.ports.iter().enumerate() {
-                            let port_obj = cx_task.empty_object();
-
-                            let port_id = cx_task.number(port.id);
-                            let port_permissions = cx_task.number(port.permissions.bits() as i32);
-                            let port_props =
-                                cx_task.string(serde_json::to_string(&port.props).unwrap());
-                            let port_node_id = cx_task.number(port.node_id);
-                            let port_name = cx_task.string(port.name.clone());
-                            let port_direction = cx_task.string(port.direction.clone());
-
-                            port_obj.set(&mut cx_task, "id", port_id).unwrap();
-                            port_obj
-                                .set(&mut cx_task, "permissions", port_permissions)
-                                .unwrap();
-                            port_obj.set(&mut cx_task, "props", port_props).unwrap();
-                            port_obj.set(&mut cx_task, "node_id", port_node_id).unwrap();
-                            port_obj.set(&mut cx_task, "name", port_name).unwrap();
-                            port_obj
-                                .set(&mut cx_task, "direction", port_direction)
-                                .unwrap();
-
-                            ports.set(&mut cx_task, i as u32, port_obj).unwrap();
-                        }
-
-                        obj.set(&mut cx_task, "id", id).unwrap();
-                        obj.set(&mut cx_task, "permissions", permissions).unwrap();
-                        obj.set(&mut cx_task, "props", props).unwrap();
-                        obj.set(&mut cx_task, "name", name).unwrap();
-                        obj.set(&mut cx_task, "node_direction", node_direction)
-                            .unwrap();
-                        obj.set(&mut cx_task, "node_type", node_type).unwrap();
-                        obj.set(&mut cx_task, "ports", ports).unwrap();
-
+                        let obj = node.to_object(&mut cx_task)?;
                         Ok(obj)
                     }
                     None => cx_task.throw_error("No node found"),
