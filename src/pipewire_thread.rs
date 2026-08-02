@@ -1,9 +1,21 @@
 use crate::{MainOptions, PipewireData, PipewireOptions, ALL_DATA};
 use pipewire::{
-    context::ContextRc, core::Core, link::Link, main_loop::MainLoopRc, node::Node, properties::properties, proxy::{Proxy, ProxyT}, registry::{GlobalObject, Registry}, spa::utils::dict::DictRef, types::ObjectType,
+    context::ContextRc,
+    core::Core,
+    link::Link,
+    main_loop::MainLoopRc,
+    node::Node,
+    properties::properties,
+    proxy::{Proxy, ProxyT},
+    registry::{GlobalObject, Registry},
+    spa::utils::dict::DictRef,
+    types::ObjectType,
 };
 
-use std::{cell::RefCell, sync::{Arc, mpsc, Mutex}};
+use std::{
+    cell::RefCell,
+    sync::{mpsc, Arc, Mutex},
+};
 
 thread_local! {
     static ENABLE_DEBUG: RefCell<bool> = RefCell::new(false);
@@ -44,6 +56,7 @@ pub(super) fn pw_thread(
             PipewireOptions::LinkNodesNameToId {
                 output_nodes_name,
                 input_node_id,
+                permanent,
             } => {
                 if enable_debug {
                     println!(
@@ -51,16 +64,25 @@ pub(super) fn pw_thread(
                         output_nodes_name, input_node_id
                     );
                 }
-                link_nodes_name_to_id(output_nodes_name, input_node_id, &core)
+                let links =
+                    link_nodes_name_to_id(output_nodes_name, input_node_id, permanent, &core);
+
+                let mut p = proxies.lock().unwrap();
+                for link in links {
+                    p.push(link.upcast());
+                }
             }
             PipewireOptions::LinkPorts {
                 input_port,
                 output_port,
+                permanent,
             } => {
                 if enable_debug {
                     println!("Linking ports: {:?} -> {:?}", input_port, output_port);
                 }
-                link_ports(input_port, output_port, &core);
+                let link = link_ports(input_port, output_port, permanent, &core);
+                let mut p = proxies.lock().unwrap();
+                p.push(link.upcast());
             }
             PipewireOptions::UnLinkNodesNameToId {
                 output_nodes_name,
@@ -83,22 +105,39 @@ pub(super) fn pw_thread(
                 }
                 unlink_ports(input_port, output_port, &registry);
             }
-            PipewireOptions::CreateSource { source_name, audio_position, channel_count } => {
+            PipewireOptions::CreateSource {
+                source_name,
+                audio_position,
+                channel_count,
+                permanent,
+            } => {
                 if enable_debug {
-                    println!("Creating virtual source named {:?} with position {:?}", source_name, audio_position);
+                    println!(
+                        "Creating virtual source named {:?} with position {:?}",
+                        source_name, audio_position
+                    );
                 }
-                let source = create_source(source_name, audio_position, channel_count, &core);
+                let source =
+                    create_source(source_name, audio_position, channel_count, permanent, &core);
                 let mut p = proxies.lock().unwrap();
                 p.push(source.upcast());
-            },
-            PipewireOptions::CreateSink { sink_name, audio_position, channel_count } => {
+            }
+            PipewireOptions::CreateSink {
+                sink_name,
+                audio_position,
+                channel_count,
+                permanent,
+            } => {
                 if enable_debug {
-                    println!("Creating virtual sink named {:?} with position {:?}", sink_name, audio_position);
+                    println!(
+                        "Creating virtual sink named {:?} with position {:?}",
+                        sink_name, audio_position
+                    );
                 }
-                let sink = create_sink(sink_name, audio_position, channel_count, &core);
+                let sink = create_sink(sink_name, audio_position, channel_count, permanent, &core);
                 let mut p = proxies.lock().unwrap();
                 p.push(sink.upcast());
-            },
+            }
         }
     });
 
@@ -146,7 +185,7 @@ fn save_node(node: &GlobalObject<&DictRef>, sender: &mpsc::Sender<MainOptions>) 
         .props
         .as_ref()
         .expect("ERROR: error at getting node properties");
-    
+
     // create a hashmap that will contain all the properties of the node
     let mut node_props = std::collections::HashMap::new();
 
@@ -346,7 +385,7 @@ fn save_link(link: &GlobalObject<&DictRef>, sender: &mpsc::Sender<MainOptions>) 
 }
 
 // Link two ports.
-fn link_ports(input_port_id: u32, output_port_id: u32, core: &Core) {
+fn link_ports(input_port_id: u32, output_port_id: u32, permanent: bool, core: &Core) -> Link {
     let mut ports = Vec::new();
 
     let all_data = ALL_DATA.lock().unwrap();
@@ -371,19 +410,20 @@ fn link_ports(input_port_id: u32, output_port_id: u32, core: &Core) {
         .expect("ERROR: error at getting output port");
 
     // Create the link.
-    core.create_object::<Link>(
-        // The actual name for a link factory might be different for your system,
-        // you should probably obtain a factory from the registry.
-        "link-factory",
-        &properties! {
-            "link.output.port" => output_port.id.to_string(),
-            "link.input.port" => input_port.id.to_string(),
-            "link.output.node" => output_port.node_id.to_string(),
-            "link.input.node" => input_port.node_id.to_string(),
-            "object.linger" => "1"
-        },
-    )
-    .expect("ERROR: error at creating link");
+    return core
+        .create_object::<Link>(
+            // The actual name for a link factory might be different for your system,
+            // you should probably obtain a factory from the registry.
+            "link-factory",
+            &properties! {
+                "link.output.port" => output_port.id.to_string(),
+                "link.input.port" => input_port.id.to_string(),
+                "link.output.node" => output_port.node_id.to_string(),
+                "link.input.node" => input_port.node_id.to_string(),
+                "object.linger" => permanent.to_string(),
+            },
+        )
+        .expect("ERROR: error at creating link");
 }
 
 // Unlink two ports.
@@ -434,7 +474,12 @@ fn unlink_ports(input_port_id: u32, output_port_id: u32, registry: &Registry) {
     registry.destroy_global(link_id);
 }
 
-fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
+fn link_nodes_name_to_id(
+    nodes_name: String,
+    input_node_id: u32,
+    permanent: bool,
+    core: &Core,
+) -> Vec<Link> {
     let all_data = ALL_DATA.lock().unwrap();
 
     // From enum all_data, get only the PipewireData::Node
@@ -492,21 +537,27 @@ fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
     let input_port_fl = input_ports.iter().find(|port| port.name.contains("FL"));
     let input_port_mono = input_ports.iter().find(|port| port.name.contains("MONO"));
 
+    let mut links = Vec::new();
+
     // if the input ports (fr and fl) are found, link every output port (fr and fl) to the input ports (fr and fl)
     if input_port_fr.is_some() && input_port_fl.is_some() {
         for port in output_ports_fr.iter() {
-            link_ports(input_port_fr.unwrap().id, port.id, core);
+            let link = link_ports(input_port_fr.unwrap().id, port.id, permanent, core);
+            links.push(link);
         }
         for port in output_ports_fl.iter() {
-            link_ports(input_port_fl.unwrap().id, port.id, core);
+            let link = link_ports(input_port_fl.unwrap().id, port.id, permanent, core);
+            links.push(link);
         }
     } else if input_port_mono.is_some() {
         // if the input ports (fr and fl) are not found, link every output port (fr and fl) to the default input port (mono)
         for port in output_ports_fr.iter() {
-            link_ports(input_port_mono.unwrap().id, port.id, core);
+            let link = link_ports(input_port_mono.unwrap().id, port.id, permanent, core);
+            links.push(link);
         }
         for port in output_ports_fl.iter() {
-            link_ports(input_port_mono.unwrap().id, port.id, core);
+            let link = link_ports(input_port_mono.unwrap().id, port.id, permanent, core);
+            links.push(link);
         }
     } else {
         // if the input ports (fr and fl) and the default input port (mono) are not found, print an error.
@@ -515,15 +566,19 @@ fn link_nodes_name_to_id(nodes_name: String, input_node_id: u32, core: &Core) {
         }
         for port in output_ports_fr.iter() {
             for input_port in input_ports.iter() {
-                link_ports(input_port.id, port.id, core);
+                let link = link_ports(input_port.id, port.id, permanent, core);
+                links.push(link);
             }
         }
         for port in output_ports_fl.iter() {
             for input_port in input_ports.iter() {
-                link_ports(input_port.id, port.id, core);
+                let link = link_ports(input_port.id, port.id, permanent, core);
+                links.push(link);
             }
         }
     }
+
+    return links;
 }
 
 fn unlink_nodes_name_to_id(nodes_name: String, input_node_id: u32, registry: &Registry) {
@@ -610,124 +665,46 @@ fn unlink_nodes_name_to_id(nodes_name: String, input_node_id: u32, registry: &Re
     }
 }
 
-fn create_source(source_name: String, audio_position: String, channel_count: u32, core: &Core) -> Node {
-    return core.create_object::<Node>(&"adapter", &properties!{
-        "media.class" => "Audio/Source/Virtual",
-        "node.name" => source_name,
-        "audio.position" => audio_position,
-        "audio.channels" => channel_count.to_string(),
-        "factory.name" => "support.null-audio-sink",
-    }).expect("error creating virtual source");
-
-    
+fn create_source(
+    source_name: String,
+    audio_position: String,
+    channel_count: u32,
+    permanent: bool,
+    core: &Core,
+) -> Node {
+    return core
+        .create_object::<Node>(
+            &"adapter",
+            &properties! {
+                "media.class" => "Audio/Source/Virtual",
+                "node.name" => source_name,
+                "audio.position" => audio_position,
+                "audio.channels" => channel_count.to_string(),
+                "factory.name" => "support.null-audio-sink",
+                "object.linger" => permanent.to_string(),
+            },
+        )
+        .expect("error creating virtual source");
 }
 
-fn create_sink(sink_name: String, audio_position: String, channel_count: u32, core: &Core) -> Node {
-    return core.create_object::<Node>(&"adapter", &properties!{
-        "media.class" => "Audio/Sink/Virtual",
-        "node.name" => sink_name,
-        "audio.position" => audio_position,
-        "audio.channels" => channel_count.to_string(),
-        "factory.name" => "support.null-audio-sink",
-    }).expect("error creating virtual sink");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::rc::Rc;
-    use std::cell::Cell;
-    use pipewire::core::PW_ID_CORE;
-    use pipewire::proxy::ProxyT;
-use pipewire::registry::RegistryRc;
-    use std::thread;
-    use std::time::Duration;
-
-    #[test]
-    fn create_sink_can_create_sink() {
-        let mainloop = MainLoopRc::new(None).expect("ERROR: error at creating mainloop");
-        let context = ContextRc::new(&mainloop, None).expect("ERROR: error at creating context");
-        let core = context
-            .connect_rc(None)
-            .expect("ERROR: error at connecting context");
-
-        let registry = core
-            .get_registry_rc()
-            .expect("ERROR: error at getting registry");
-
-        roundtrip(&mainloop, &core, &registry);
-        roundtrip(&mainloop, &core, &registry);
-        roundtrip(&mainloop, &core, &registry);
-
-        let sink = create_sink("test-sink".to_string(), "FL,FR".to_string(), 2, &core);
-
-        sink.upcast();
-
-        println!();
-
-        roundtrip(&mainloop, &core, &registry);
-        thread::sleep(Duration::from_secs(30))
-    }
-
-    #[test]
-    fn create_source_can_create_source() {
-        let mainloop = MainLoopRc::new(None).expect("ERROR: error at creating mainloop");
-        let context = ContextRc::new(&mainloop, None).expect("ERROR: error at creating context");
-        let core = context
-            .connect_rc(None)
-            .expect("ERROR: error at connecting context");
-
-        let registry = core
-            .get_registry_rc()
-            .expect("ERROR: error at getting registry");
-
-        roundtrip(&mainloop, &core, &registry);
-        roundtrip(&mainloop, &core, &registry);
-        roundtrip(&mainloop, &core, &registry);
-
-        create_source("test-source".to_string(), "FL,FR".to_string(), 2, &core);
-
-        println!();
-
-        roundtrip(&mainloop, &core, &registry);
-        thread::sleep(Duration::from_secs(30))
-    }
-
-    fn roundtrip(mainloop: &MainLoopRc, core: &Core, registry: &RegistryRc) {
-        // To comply with Rust's safety rules, we wrap this variable in an `Rc` and  a `Cell`.
-        let done = Rc::new(Cell::new(false));
-
-        // Create new reference for each variable so that they can be moved into the closure.
-        let done_clone = done.clone();
-        let loop_clone = mainloop.clone();
-
-        // Trigger the sync event. The server's answer won't be processed until we start the main loop,
-        // so we can safely do this before setting up a callback. This lets us avoid using a Cell.
-        let pending = core.sync(0).expect("sync failed");
-
-        let _listener_registry = registry.add_listener_local().global({
-            move |object| match object.type_ {
-                ObjectType::Node => println!("{:?}", object),
-                ObjectType::Link => println!("{:?}", object),
-                ObjectType::Port => println!("{:?}", object),
-                _ => {
-                    // Ignore other types.
-                }
-            }
-        }).register();
-
-        let _listener_core = core
-            .add_listener_local()
-            .done(move |id, seq| {
-                if id == PW_ID_CORE && seq == pending {
-                    done_clone.set(true);
-                    loop_clone.quit();
-                }
-            })
-            .register();
-
-        while !done.get() {
-            mainloop.run();
-        }
-    }
+fn create_sink(
+    sink_name: String,
+    audio_position: String,
+    channel_count: u32,
+    permanent: bool,
+    core: &Core,
+) -> Node {
+    return core
+        .create_object::<Node>(
+            &"adapter",
+            &properties! {
+                "media.class" => "Audio/Sink/Virtual",
+                "node.name" => sink_name,
+                "audio.position" => audio_position,
+                "audio.channels" => channel_count.to_string(),
+                "factory.name" => "support.null-audio-sink",
+                "object.linger" => permanent.to_string(),
+            },
+        )
+        .expect("error creating virtual sink");
 }

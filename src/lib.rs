@@ -7,7 +7,8 @@ use pipewire::permissions::PermissionFlags;
 use std::{
     cell::RefCell,
     collections::HashMap,
-    sync::{mpsc, Arc, Mutex}, time::Instant,
+    sync::{mpsc, Arc, Mutex},
+    time::Instant,
 };
 use tokio::runtime::Runtime;
 
@@ -169,6 +170,7 @@ enum PipewireOptions {
     LinkPorts {
         input_port: u32,
         output_port: u32,
+        permanent: bool,
     },
     UnLinkPorts {
         input_port: u32,
@@ -177,6 +179,7 @@ enum PipewireOptions {
     LinkNodesNameToId {
         output_nodes_name: String,
         input_node_id: u32,
+        permanent: bool,
     },
     UnLinkNodesNameToId {
         output_nodes_name: String,
@@ -186,12 +189,14 @@ enum PipewireOptions {
         source_name: String,
         audio_position: String,
         channel_count: u32,
+        permanent: bool,
     },
     CreateSink {
         sink_name: String,
         audio_position: String,
         channel_count: u32,
-    }
+        permanent: bool,
+    },
 }
 
 // create a global variable with RefCell to store all the data we need
@@ -555,9 +560,11 @@ fn get_input_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
 fn link_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let input_nodes_name = cx.argument::<JsString>(0)?;
     let output_node_id = cx.argument::<JsNumber>(1)?;
+    let permanent = cx.argument::<JsBoolean>(2)?;
 
     let input_nodes_name = input_nodes_name.value(&mut cx);
     let output_node_id = output_node_id.value(&mut cx) as u32;
+    let permanent = permanent.value(&mut cx);
 
     // get the pw_sender from the context data
     let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
@@ -571,6 +578,7 @@ fn link_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let result = temp_pw_sender.send(PipewireOptions::LinkNodesNameToId {
         output_nodes_name: input_nodes_name,
         input_node_id: output_node_id,
+        permanent: permanent,
     });
 
     // put the pw_sender back in the context data
@@ -625,9 +633,11 @@ fn unlink_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 fn link_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let input_port_id = cx.argument::<JsNumber>(0)?;
     let output_port_id = cx.argument::<JsNumber>(1)?;
+    let permanent = cx.argument::<JsBoolean>(2)?;
 
     let input_port_id = input_port_id.value(&mut cx) as u32;
     let output_port_id = output_port_id.value(&mut cx) as u32;
+    let permanent = permanent.value(&mut cx);
 
     // get the pw_sender from the context data
     let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
@@ -641,6 +651,7 @@ fn link_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let result = temp_pw_sender.send(PipewireOptions::LinkPorts {
         input_port: input_port_id,
         output_port: output_port_id,
+        permanent: permanent,
     });
 
     // put the pw_sender back in the context data
@@ -731,7 +742,7 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
         node_directions.push("Input".to_string());
         node_directions.push("Output".to_string());
     }
-    
+
     // get the actual nodes from the context data
     let nodes = get_current_nodes(node_name.clone(), node_directions.clone());
 
@@ -742,11 +753,12 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
             // start async task
             rt.spawn(async move {
                 let mut _node = None;
-        
+
                 loop {
                     // get the actual nodes from the context data
-                    let new_nodes = get_current_nodes(node_name.clone(), node_directions.clone()).unwrap();
-        
+                    let new_nodes =
+                        get_current_nodes(node_name.clone(), node_directions.clone()).unwrap();
+
                     // check if the length of the nodes is different
                     if new_nodes.len() > 0 {
                         ENABLE_DEBUG.with(|debug| {
@@ -762,7 +774,7 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                                 }
                             }
                         });
-        
+
                         // get the new node compared to the old nodes
                         for new_node in new_nodes.iter() {
                             let mut found = false;
@@ -777,12 +789,12 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                                 break;
                             }
                         }
-        
+
                         if _node.is_some() {
                             break;
                         }
                     }
-        
+
                     // check if the timeout is reached (default 5 seconds)
                     if start_time.elapsed().as_millis() > timeout {
                         break;
@@ -791,7 +803,7 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                     // wait 500ms (Maybe this can be changed to a lower value)
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
-        
+
                 // defer the result
                 deferred.settle_with(&channel, move |mut cx_task| match _node {
                     Some(node) => {
@@ -803,17 +815,18 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                         let node_direction = cx_task.string(node.node_direction);
                         let node_type = cx_task.string(node.node_type);
                         let ports = cx_task.empty_array();
-        
+
                         for (i, port) in node.ports.iter().enumerate() {
                             let port_obj = cx_task.empty_object();
-        
+
                             let port_id = cx_task.number(port.id);
                             let port_permissions = cx_task.number(port.permissions.bits() as i32);
-                            let port_props = cx_task.string(serde_json::to_string(&port.props).unwrap());
+                            let port_props =
+                                cx_task.string(serde_json::to_string(&port.props).unwrap());
                             let port_node_id = cx_task.number(port.node_id);
                             let port_name = cx_task.string(port.name.clone());
                             let port_direction = cx_task.string(port.direction.clone());
-        
+
                             port_obj.set(&mut cx_task, "id", port_id).unwrap();
                             port_obj
                                 .set(&mut cx_task, "permissions", port_permissions)
@@ -824,10 +837,10 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                             port_obj
                                 .set(&mut cx_task, "direction", port_direction)
                                 .unwrap();
-        
+
                             ports.set(&mut cx_task, i as u32, port_obj).unwrap();
                         }
-        
+
                         obj.set(&mut cx_task, "id", id).unwrap();
                         obj.set(&mut cx_task, "permissions", permissions).unwrap();
                         obj.set(&mut cx_task, "props", props).unwrap();
@@ -836,17 +849,16 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                             .unwrap();
                         obj.set(&mut cx_task, "node_type", node_type).unwrap();
                         obj.set(&mut cx_task, "ports", ports).unwrap();
-        
+
                         Ok(obj)
                     }
                     None => cx_task.throw_error("No node found"),
                 });
             });
-        
-        },
+        }
         Err(_) => {
-            return cx.throw_error("Error getting the nodes"); 
-        } 
+            return cx.throw_error("Error getting the nodes");
+        }
     };
 
     Ok(promise)
@@ -856,10 +868,12 @@ fn create_source(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let new_source_name = cx.argument::<JsString>(0)?;
     let new_audio_position = cx.argument::<JsString>(1)?;
     let new_channel_count = cx.argument::<JsNumber>(2)?;
+    let permanent = cx.argument::<JsBoolean>(3)?;
 
     let new_source_name = new_source_name.value(&mut cx);
     let new_audio_position = new_audio_position.value(&mut cx);
     let new_channel_count = new_channel_count.value(&mut cx) as u32;
+    let permanent = permanent.value(&mut cx);
 
     // get the pw_sender from the context data
     let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
@@ -869,7 +883,12 @@ fn create_source(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             .expect("pw_sender not set in context data")
     });
 
-    let _ = temp_pw_sender.send(PipewireOptions::CreateSource { source_name: new_source_name, audio_position: new_audio_position, channel_count: new_channel_count  });
+    let _ = temp_pw_sender.send(PipewireOptions::CreateSource {
+        source_name: new_source_name,
+        audio_position: new_audio_position,
+        channel_count: new_channel_count,
+        permanent: permanent,
+    });
 
     // put the pw_sender back in the context data
     PW_SENDER.with(|pw_sender| {
@@ -883,10 +902,12 @@ fn create_sink(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let new_sink_name = cx.argument::<JsString>(0)?;
     let new_audio_position = cx.argument::<JsString>(1)?;
     let new_channel_count = cx.argument::<JsNumber>(2)?;
+    let permanent = cx.argument::<JsBoolean>(3)?;
 
     let new_sink_name = new_sink_name.value(&mut cx);
     let new_audio_position = new_audio_position.value(&mut cx);
     let new_channel_count = new_channel_count.value(&mut cx) as u32;
+    let permanent = permanent.value(&mut cx);
 
     // get the pw_sender from the context data
     let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
@@ -896,7 +917,12 @@ fn create_sink(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             .expect("pw_sender not set in context data")
     });
 
-    let _ = temp_pw_sender.send(PipewireOptions::CreateSink { sink_name: new_sink_name, audio_position: new_audio_position, channel_count: new_channel_count });
+    let _ = temp_pw_sender.send(PipewireOptions::CreateSink {
+        sink_name: new_sink_name,
+        audio_position: new_audio_position,
+        channel_count: new_channel_count,
+        permanent: permanent,
+    });
 
     // put the pw_sender back in the context data
     PW_SENDER.with(|pw_sender| {

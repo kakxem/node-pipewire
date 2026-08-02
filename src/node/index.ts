@@ -69,16 +69,16 @@ export function getInputNodes(): PipewireNode[] {
   return temp.filter(input => input.id);
 }
 
-export function linkNodesNameToId(nodeName: string, nodeId: number) {
-  library.linkNodesNameToId(nodeName, nodeId);
+export function linkNodesNameToId(nodeName: string, nodeId: number, permanent = true) {
+  library.linkNodesNameToId(nodeName, nodeId, permanent);
 }
 
 export function unlinkNodesNameToId(nodeName: string, nodeId: number) {
   library.unlinkNodesNameToId(nodeName, nodeId);
 }
 
-export function linkPorts(inputPortId: number, outputPortId: number) {
-  library.linkPorts(inputPortId, outputPortId);
+export function linkPorts(inputPortId: number, outputPortId: number, permanent = true) {
+  library.linkPorts(inputPortId, outputPortId, permanent);
 }
 
 export function unlinkPorts(inputPortId: number, outputPortId: number) {
@@ -97,10 +97,10 @@ export function waitForNewNode(nodeName: string, direction?: NodeDirection, time
   return library.waitForNewNode(nodeName, direction ?? "Both", timeout ?? 5000);
 }
 
-export function createSource(newSourceName: string, audioPositions: AudioPosition[]) {
-  return library.createSource(newSourceName, audioPositions.join(","), audioPositions.length);
+export function createSource(newSourceName: string, audioPositions: AudioPosition[], permanent = false) {
+  return library.createSource(newSourceName, audioPositions.join(","), audioPositions.length, permanent);
 }
 
-export function createSink(newSinkName: string, audioPositions: AudioPosition[]) {
-  return library.createSink(newSinkName, audioPositions.join(","), audioPositions.length);
+export function createSink(newSinkName: string, audioPositions: AudioPosition[], permanent = false) {
+  return library.createSink(newSinkName, audioPositions.join(","), audioPositions.length, permanent);
 }
