@@ -14,6 +14,9 @@
     "package": "node-pre-gyp package",
     "upload-binary": "./upload-binaries.sh"
   },
+  "os": [
+    "linux"
+  ],
   "binary": {
     "module_name": "index",
     "host": "https://github.com/kakxem/node-pipewire/releases/download/",
