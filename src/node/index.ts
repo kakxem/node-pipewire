@@ -39,7 +39,7 @@ interface PipewireClient {
 type NodeDirection = "Input" | "Output" | "Both";
 
 // Surround is not yet implemented in the library
-type AudioPosition = "FL" | "FR";
+type AudioPosition = "FL" | "FR" | "MONO";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const library = require("./index.node");
@@ -112,10 +112,16 @@ export function waitForNewNode(nodeName: string, direction?: NodeDirection, time
 }
 
 export function createSource(newSourceName: string, audioPositions: AudioPosition[], permanent = false) {
+  if (audioPositions.length == 0) {
+    throw new Error("Cannot create a source with no audio positions");
+  }
   return library.createSource(newSourceName, audioPositions.join(","), audioPositions.length, permanent);
 }
 
 export function createSink(newSinkName: string, audioPositions: AudioPosition[], permanent = false) {
+  if (audioPositions.length == 0) {
+    throw new Error("Cannot create a sink with no audio positions");
+  }
   return library.createSink(newSinkName, audioPositions.join(","), audioPositions.length, permanent);
 }
 
