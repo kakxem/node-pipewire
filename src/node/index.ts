@@ -118,3 +118,7 @@ export function createSource(newSourceName: string, audioPositions: AudioPositio
 export function createSink(newSinkName: string, audioPositions: AudioPosition[], permanent = false) {
   return library.createSink(newSinkName, audioPositions.join(","), audioPositions.length, permanent);
 }
+
+export function destroyObject(id: number) {
+  return library.destroyObject(id);
+}

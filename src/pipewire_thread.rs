@@ -46,6 +46,9 @@ pub(super) fn pw_thread(
         let registry = core
             .get_registry_rc()
             .expect("ERROR: error at getting registry");
+
+        let proxies = proxies.clone();
+
         move |msg| match msg {
             PipewireOptions::CloseThread => {
                 if enable_debug {
@@ -138,6 +141,12 @@ pub(super) fn pw_thread(
                 let mut p = proxies.lock().unwrap();
                 p.push(sink.upcast());
             }
+            PipewireOptions::DeleteObject { id } => {
+                if enable_debug {
+                    println!("Attempting to destroy object {:?}", id);
+                }
+                destroy_object(id, &registry);
+            }
         }
     });
 
@@ -161,8 +170,13 @@ pub(super) fn pw_thread(
         })
         .global_remove({
             let sender = front_sender.clone();
+            let proxies = proxies.clone();
 
             move |id| {
+                let mut p = proxies.lock().unwrap();
+                if let Some(proxy) = p.iter().position(|proxy| proxy.id() == id) {
+                    p.swap_remove(proxy);
+                }
                 sender
                     .send(MainOptions::DeleteItem { id })
                     .expect("ERROR: error at sending delete to front");
@@ -734,7 +748,8 @@ fn create_source(
             &"adapter",
             &properties! {
                 "media.class" => "Audio/Source/Virtual",
-                "node.name" => source_name,
+                "node.name" => "node-pipewire:".to_string() + &source_name,
+                "node.nick" => source_name,
                 "audio.position" => audio_position,
                 "audio.channels" => channel_count.to_string(),
                 "factory.name" => "support.null-audio-sink",
@@ -756,7 +771,8 @@ fn create_sink(
             &"adapter",
             &properties! {
                 "media.class" => "Audio/Sink/Virtual",
-                "node.name" => sink_name,
+                "node.name" => "node-pipewire:".to_string() + &sink_name,
+                "node.nick" => sink_name,
                 "audio.position" => audio_position,
                 "audio.channels" => channel_count.to_string(),
                 "factory.name" => "support.null-audio-sink",
@@ -766,13 +782,55 @@ fn create_sink(
         .expect("error creating virtual sink");
 }
 
+fn destroy_object(id: u32, registry: &Registry) {
+    let all_data = ALL_DATA.lock().unwrap();
+
+    // Get the object for this id
+    let target = all_data
+        .iter()
+        .find(|obj| match obj.1 {
+            PipewireData::Link(link) => link.id == id,
+            PipewireData::Port(port) => port.id == id,
+            PipewireData::Node(node) => node.id == id,
+            PipewireData::Client(client) => client.id == id,
+        })
+        .expect("ERROR: error at finding target")
+        .1
+        .clone();
+    drop(all_data);
+
+    let allow;
+
+    match target {
+        PipewireData::Node(node) => {
+            allow = node
+                .props
+                .get("node.name")
+                .expect("ERROR: Node did not have a name prop")
+                .starts_with("node-pipewire:");
+        }
+        PipewireData::Link(_) => allow = true,
+        _ => {
+            allow = false;
+        }
+    }
+
+    if allow {
+        if ENABLE_DEBUG.with(|f| *f.borrow()) {
+            println!("Allowing to destroy object with id {}", id);
+        }
+        registry.destroy_global(id);
+    } else if ENABLE_DEBUG.with(|f| *f.borrow()) {
+        println!("Disallowing to destroy object with id {}", id);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use pipewire::core::PW_ID_CORE;
     use pipewire::registry::RegistryRc;
-    use std::cell::Cell;
-    use std::rc::Rc;
+    use std::{cell::Cell, rc::Rc};
 
     #[test]
     fn do_roundtrip() {
@@ -805,7 +863,8 @@ mod tests {
             .add_listener_local()
             .global({
                 move |object| match object.type_ {
-                    ObjectType::Client => println!("{:?}", object),
+                    // To print out specific objects, match them here
+                    // ObjectType::Client => println!("{:?}", object),
                     _ => {
                         // Ignore other types.
                     }

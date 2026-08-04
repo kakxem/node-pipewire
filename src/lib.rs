@@ -261,6 +261,9 @@ enum PipewireOptions {
         channel_count: u32,
         permanent: bool,
     },
+    DeleteObject {
+        id: u32,
+    },
 }
 
 // create a global variable with RefCell to store all the data we need
@@ -1013,6 +1016,31 @@ fn create_sink(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     Ok(cx.undefined())
 }
 
+fn destroy_object(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let destroy_target_id = cx.argument::<JsNumber>(0)?;
+
+    let destroy_target_id = destroy_target_id.value(&mut cx) as u32;
+
+    // get the pw_sender from the context data
+    let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
+        pw_sender
+            .borrow_mut()
+            .take()
+            .expect("pw_sender not set in context data")
+    });
+
+    let _ = temp_pw_sender.send(PipewireOptions::DeleteObject {
+        id: destroy_target_id,
+    });
+
+    // put the pw_sender back in the context data
+    PW_SENDER.with(|pw_sender| {
+        pw_sender.borrow_mut().replace(temp_pw_sender);
+    });
+
+    Ok(cx.undefined())
+}
+
 #[neon::main]
 fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("createPwThread", create_pw_thread)?;
@@ -1030,5 +1058,6 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("waitForNewNode", wait_for_new_node)?;
     cx.export_function("createSource", create_source)?;
     cx.export_function("createSink", create_sink)?;
+    cx.export_function("destroyObject", destroy_object)?;
     Ok(())
 }
