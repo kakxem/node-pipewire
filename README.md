@@ -118,14 +118,17 @@ unlinkNodesNameToId(nodeName: string, nodeId: number)
 waitForNewNode(nodeName: string, direction?: 'Input' | 'Output' | 'Both', timeout?: number)
 
 //Create a new source. If permanent is false, the node will be deleted after the PwThread closes.
-// Sources will be created with `node-pipewire:` in front of the name, but the nickname will be the string passed.
+//Sources will be created with `node-pipewire:` in front of the name, but the nickname will be the string passed.
+//Passing an empty audioPositions array will result in an error being thrown.
 createSource(sourceName: string, audioPositions: AudioPosition[], permanent = false)
 
 //Create a new sink. If permanent is false, the node will be deleted after the PwThread closes.
-// Sinks will be created with `node-pipewire:` in front of the name, but the nickname will be the string passed.
+//Sinks will be created with `node-pipewire:` in front of the name, but the nickname will be the string passed.
+//Passing an empty audioPositions array will result in an error being thrown.
 createSink(sourceName: string, audioPositions: AudioPosition[], permanent = false)
 
-// Destroy an object. This will only success if ID represents a link, or a sink/source created by node-pipewire.
+//Destroy an object. This will only succeed if ID represents a link, or a sink/source created by node-pipewire.
+//Destroying a node may crash applications referencing that node.
 destroyObject(id: number);
 ```
 
