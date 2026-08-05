@@ -1,4 +1,5 @@
 mod pipewire_thread;
+mod proxy;
 
 use lazy_static::lazy_static;
 use neon::prelude::*;
@@ -284,22 +285,7 @@ fn runtime<'a, C: Context<'a>>(cx: &mut C) -> NeonResult<&'static Runtime> {
     RUNTIME.get_or_try_init(|| Runtime::new().or_else(|err| cx.throw_error(err.to_string())))
 }
 
-fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    // Mini-Schema:
-    // - We can send option to pipewire with pw_sender and we receive options from pipewire with pw_receiver.
-
-    // get the debug boolean from the arguments
-    let debug_argument = cx
-        .argument_opt(0)
-        .map(|v| Ok(v.downcast_or_throw::<JsBoolean, _>(&mut cx)?.value(&mut cx)))
-        .transpose()?;
-
-    if let Some(debug) = debug_argument {
-        ENABLE_DEBUG.with(|v| *v.borrow_mut() = debug);
-    }
-
-    let enable_debug = ENABLE_DEBUG.with(|v| *v.borrow());
-
+fn create_pw_thread_internal(enable_debug: bool) {
     // start a sender and receiver to communicate with the pipewire thread
     let (main_sender, main_receiver) = mpsc::channel();
     // start a sender and receiver to communicate with the main thread
@@ -509,6 +495,25 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     ENABLE_DEBUG.with(|debug| {
         *debug.borrow_mut() = enable_debug;
     });
+}
+
+fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    // Mini-Schema:
+    // - We can send option to pipewire with pw_sender and we receive options from pipewire with pw_receiver.
+
+    // get the debug boolean from the arguments
+    let debug_argument = cx
+        .argument_opt(0)
+        .map(|v| Ok(v.downcast_or_throw::<JsBoolean, _>(&mut cx)?.value(&mut cx)))
+        .transpose()?;
+
+    if let Some(debug) = debug_argument {
+        ENABLE_DEBUG.with(|v| *v.borrow_mut() = debug);
+    }
+
+    let enable_debug = ENABLE_DEBUG.with(|v| *v.borrow());
+
+    create_pw_thread_internal(enable_debug);
 
     Ok(cx.undefined())
 }

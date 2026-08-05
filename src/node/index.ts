@@ -39,7 +39,7 @@ interface PipewireClient {
 type NodeDirection = "Input" | "Output" | "Both";
 
 // Surround is not yet implemented in the library
-type AudioPosition = "FL" | "FR" | "MONO";
+type AudioPosition = "FL" | "FR";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const library = require("./index.node");

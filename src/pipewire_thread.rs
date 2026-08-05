@@ -1,4 +1,4 @@
-use crate::{MainOptions, PipewireData, PipewireOptions, ALL_DATA};
+use crate::{proxy::ProxyWrapper, MainOptions, PipewireData, PipewireOptions, ALL_DATA};
 use pipewire::{
     context::ContextRc,
     core::Core,
@@ -6,16 +6,13 @@ use pipewire::{
     main_loop::MainLoopRc,
     node::Node,
     properties::properties,
-    proxy::{Proxy, ProxyT},
+    proxy::ProxyT,
     registry::{GlobalObject, Registry},
     spa::utils::dict::DictRef,
     types::ObjectType,
 };
 
-use std::{
-    cell::RefCell,
-    sync::{mpsc, Arc, Mutex},
-};
+use std::{cell::RefCell, rc::Rc, sync::mpsc};
 
 thread_local! {
     static ENABLE_DEBUG: RefCell<bool> = RefCell::new(false);
@@ -27,7 +24,7 @@ pub(super) fn pw_thread(
     enable_debug: bool,
 ) {
     // Proxy cache to prevent destruction of elements while thread is running
-    let proxies: Arc<Mutex<Vec<Proxy>>> = Arc::new(Mutex::new(Vec::new()));
+    let proxies: Rc<RefCell<Vec<ProxyWrapper>>> = Rc::new(RefCell::new(Vec::new()));
 
     // Basic setup of pipewire thread
     let mainloop = MainLoopRc::new(None).expect("ERROR: error at creating mainloop");
@@ -43,9 +40,7 @@ pub(super) fn pw_thread(
     // Listen the pw_receiver the options from "PipewireOptions" struct
     let _receiver = pw_receiver.attach(&mainloop.loop_(), {
         let mainloop = mainloop.clone();
-        let registry = core
-            .get_registry_rc()
-            .expect("ERROR: error at getting registry");
+        let registry = registry.clone();
 
         let proxies = proxies.clone();
 
@@ -69,10 +64,8 @@ pub(super) fn pw_thread(
                 }
                 let links =
                     link_nodes_name_to_id(output_nodes_name, input_node_id, permanent, &core);
-
-                let mut p = proxies.lock().unwrap();
                 for link in links {
-                    p.push(link.upcast());
+                    proxies.borrow_mut().push(ProxyWrapper::new(link.upcast()));
                 }
             }
             PipewireOptions::LinkPorts {
@@ -84,8 +77,7 @@ pub(super) fn pw_thread(
                     println!("Linking ports: {:?} -> {:?}", input_port, output_port);
                 }
                 let link = link_ports(input_port, output_port, permanent, &core);
-                let mut p = proxies.lock().unwrap();
-                p.push(link.upcast());
+                proxies.borrow_mut().push(ProxyWrapper::new(link.upcast()));
             }
             PipewireOptions::UnLinkNodesNameToId {
                 output_nodes_name,
@@ -122,8 +114,10 @@ pub(super) fn pw_thread(
                 }
                 let source =
                     create_source(source_name, audio_position, channel_count, permanent, &core);
-                let mut p = proxies.lock().unwrap();
-                p.push(source.upcast());
+
+                proxies
+                    .borrow_mut()
+                    .push(ProxyWrapper::new(source.upcast()));
             }
             PipewireOptions::CreateSink {
                 sink_name,
@@ -138,8 +132,8 @@ pub(super) fn pw_thread(
                     );
                 }
                 let sink = create_sink(sink_name, audio_position, channel_count, permanent, &core);
-                let mut p = proxies.lock().unwrap();
-                p.push(sink.upcast());
+
+                proxies.borrow_mut().push(ProxyWrapper::new(sink.upcast()));
             }
             PipewireOptions::DeleteObject { id } => {
                 if enable_debug {
@@ -173,10 +167,28 @@ pub(super) fn pw_thread(
             let proxies = proxies.clone();
 
             move |id| {
-                let mut p = proxies.lock().unwrap();
-                if let Some(proxy) = p.iter().position(|proxy| proxy.id() == id) {
-                    p.swap_remove(proxy);
+                if ENABLE_DEBUG.with(|f| *f.borrow()) {
+                    println!("Object deleted: {}", id);
                 }
+                let mut borrowed_proxies = proxies.borrow_mut();
+
+                if let Some(proxy) = borrowed_proxies
+                    .iter()
+                    .position(|proxy| proxy.get_global_id() == id)
+                {
+                    if ENABLE_DEBUG.with(|f| *f.borrow()) {
+                        println!(
+                            "Detected deletion of item in proxy cache: {}",
+                            borrowed_proxies
+                                .get(proxy)
+                                .expect("ERROR: proxy should be defined")
+                                .get_global_id()
+                        );
+                    }
+
+                    borrowed_proxies.swap_remove(proxy);
+                }
+
                 sender
                     .send(MainOptions::DeleteItem { id })
                     .expect("ERROR: error at sending delete to front");
@@ -786,7 +798,7 @@ fn destroy_object(id: u32, registry: &Registry) {
     let all_data = ALL_DATA.lock().unwrap();
 
     // Get the object for this id
-    let target = all_data
+    let maybe_target = all_data
         .iter()
         .find(|obj| match obj.1 {
             PipewireData::Link(link) => link.id == id,
@@ -794,11 +806,21 @@ fn destroy_object(id: u32, registry: &Registry) {
             PipewireData::Node(node) => node.id == id,
             PipewireData::Client(client) => client.id == id,
         })
-        .expect("ERROR: error at finding target")
+        .clone();
+
+    if maybe_target.is_none() {
+        if ENABLE_DEBUG.with(|f| *f.borrow()) {
+            println!("Attempted to destroy non-existent object {}", id);
+        }
+        return;
+    }
+
+    let target = maybe_target
+        .expect("ERROR: target should not be empty")
         .1
         .clone();
-    drop(all_data);
 
+    drop(all_data);
     let allow;
 
     match target {
@@ -827,10 +849,12 @@ fn destroy_object(id: u32, registry: &Registry) {
 
 #[cfg(test)]
 mod tests {
+    use crate::{create_pw_thread_internal, PW_SENDER};
+
     use super::*;
     use pipewire::core::PW_ID_CORE;
     use pipewire::registry::RegistryRc;
-    use std::{cell::Cell, rc::Rc};
+    use std::{cell::Cell, rc::Rc, thread, time::Duration};
 
     #[test]
     fn do_roundtrip() {
@@ -845,6 +869,242 @@ mod tests {
             .expect("ERROR: error at getting registry");
 
         roundtrip(&mainloop, &core, &registry);
+    }
+
+    #[test]
+    fn does_pw_thread_create_sink() {
+        create_pw_thread_internal(true);
+        // Give the thread a bit to spool up
+        thread::sleep(Duration::from_millis(100));
+
+        let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> =
+            PW_SENDER.with(|pw_sender| {
+                pw_sender
+                    .borrow_mut()
+                    .take()
+                    .expect("pw_sender not set in context data")
+            });
+
+        let test_sink_name = "test-sink-exists".to_string();
+
+        let _ = temp_pw_sender.send(PipewireOptions::CreateSink {
+            sink_name: test_sink_name.clone(),
+            audio_position: "FL,FR".to_string(),
+            channel_count: 2,
+            permanent: false,
+        });
+
+        // Give the thread a bit to process our request
+        thread::sleep(Duration::from_millis(100));
+
+        let all_data = ALL_DATA.lock().unwrap();
+
+        // Get the object for this id
+        all_data
+            .iter()
+            .find(|obj| match obj.1 {
+                PipewireData::Node(node) => node.name == test_sink_name,
+                _ => false,
+            })
+            .expect("ERROR: error at finding created sink");
+        drop(all_data);
+    }
+
+    #[test]
+    fn does_pw_thread_create_source() {
+        create_pw_thread_internal(true);
+        // Give the thread a bit to spool up
+        thread::sleep(Duration::from_millis(100));
+
+        let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> =
+            PW_SENDER.with(|pw_sender| {
+                pw_sender
+                    .borrow_mut()
+                    .take()
+                    .expect("pw_sender not set in context data")
+            });
+
+        let test_source_name = "test-source-exists".to_string();
+
+        let _ = temp_pw_sender.send(PipewireOptions::CreateSource {
+            source_name: test_source_name.clone(),
+            audio_position: "FL,FR".to_string(),
+            channel_count: 2,
+            permanent: false,
+        });
+
+        // Give the thread a bit to process our request
+        thread::sleep(Duration::from_millis(100));
+
+        let all_data = ALL_DATA.lock().unwrap();
+
+        // Get the object for this id
+        all_data
+            .iter()
+            .find(|obj| match obj.1 {
+                PipewireData::Node(node) => node.name == test_source_name,
+                _ => false,
+            })
+            .expect("ERROR: error at finding created source");
+        drop(all_data);
+    }
+
+    #[test]
+    fn does_pw_thread_delete_nodes() {
+        // Just a heads up, this test might break your audio.
+
+        create_pw_thread_internal(true);
+        // Give the thread a bit to spool up
+        thread::sleep(Duration::from_millis(100));
+
+        let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> =
+            PW_SENDER.with(|pw_sender| {
+                pw_sender
+                    .borrow_mut()
+                    .take()
+                    .expect("pw_sender not set in context data")
+            });
+
+        let test_source_name = "test-source-exists".to_string();
+
+        let _ = temp_pw_sender.send(PipewireOptions::CreateSource {
+            source_name: test_source_name.clone(),
+            audio_position: "FL,FR".to_string(),
+            channel_count: 2,
+            permanent: false,
+        });
+
+        // Give the thread a bit to process our request
+        thread::sleep(Duration::from_millis(100));
+
+        let all_data = ALL_DATA.lock().unwrap();
+
+        // Get the object for this id
+        let mut maybe_node = None;
+        for data in all_data.iter() {
+            if let PipewireData::Node(n) = data.1 {
+                if n.name == test_source_name {
+                    maybe_node = Some(n);
+                    break;
+                }
+            }
+        }
+
+        let node = maybe_node
+            .expect("ERROR: error at finding object after creation")
+            .clone();
+
+        drop(all_data);
+
+        let _ = temp_pw_sender.send(PipewireOptions::DeleteObject { id: node.id });
+
+        // Give the thread a bit to process our request
+        thread::sleep(Duration::from_secs(1));
+    }
+
+    #[test]
+    fn does_pw_thread_delete_links() {
+        create_pw_thread_internal(true);
+        // Give the thread a bit to spool up
+        thread::sleep(Duration::from_millis(100));
+
+        let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> =
+            PW_SENDER.with(|pw_sender| {
+                pw_sender
+                    .borrow_mut()
+                    .take()
+                    .expect("pw_sender not set in context data")
+            });
+
+        let test_source_name = "test-source-exists".to_string();
+
+        let _ = temp_pw_sender.send(PipewireOptions::CreateSource {
+            source_name: test_source_name.clone(),
+            audio_position: "FL,FR".to_string(),
+            channel_count: 2,
+            permanent: false,
+        });
+
+        let test_sink_name = "test-sink-exists".to_string();
+
+        let _ = temp_pw_sender.send(PipewireOptions::CreateSink {
+            sink_name: test_sink_name.clone(),
+            audio_position: "FL,FR".to_string(),
+            channel_count: 2,
+            permanent: false,
+        });
+
+        // Give the thread a bit to process our request
+        thread::sleep(Duration::from_millis(100));
+
+        let all_data = ALL_DATA.lock().unwrap();
+
+        // Get the object for this id
+        let mut maybe_node = None;
+        for data in all_data.iter() {
+            if let PipewireData::Node(n) = data.1 {
+                if n.name == test_source_name {
+                    maybe_node = Some(n);
+                    break;
+                }
+            }
+        }
+
+        let source_node = maybe_node
+            .expect("ERROR: error at finding object after creation")
+            .clone();
+
+        drop(all_data);
+
+        let _ = temp_pw_sender.send(PipewireOptions::LinkNodesNameToId {
+            output_nodes_name: test_sink_name,
+            input_node_id: source_node.id,
+            permanent: false,
+        });
+
+        // Give the thread a bit to process our request
+        thread::sleep(Duration::from_millis(100));
+
+        let all_data = ALL_DATA.lock().unwrap();
+
+        // Get the object for this id
+        let mut maybe_link = None;
+        for data in all_data.iter() {
+            if let PipewireData::Link(l) = data.1 {
+                if l.input_node_id == source_node.id {
+                    maybe_link = Some(l);
+                    break;
+                }
+            }
+        }
+
+        let link = maybe_link
+            .expect("ERROR: error at finding object after creation")
+            .clone();
+
+        drop(all_data);
+
+        let _ = temp_pw_sender.send(PipewireOptions::DeleteObject { id: link.id });
+
+        // Give the thread a bit to process our request
+        thread::sleep(Duration::from_secs(1));
+    }
+
+    #[test]
+    fn does_pw_thread_noop_deleting_non_existent_object() {
+        create_pw_thread_internal(true);
+        // Give the thread a bit to spool up
+        thread::sleep(Duration::from_millis(100));
+
+        let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> =
+            PW_SENDER.with(|pw_sender| {
+                pw_sender
+                    .borrow_mut()
+                    .take()
+                    .expect("pw_sender not set in context data")
+            });
+
+        let _ = temp_pw_sender.send(PipewireOptions::DeleteObject { id: 1_111_111_111 });
     }
 
     fn roundtrip(mainloop: &MainLoopRc, core: &Core, registry: &RegistryRc) {
