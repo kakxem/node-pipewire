@@ -53,6 +53,7 @@
     "build/*.js.map",
     "src/lib.rs",
     "src/pipewire_thread.rs",
+    "src/proxy.rs",
     "Cargo.toml",
     "README.md",
     "LICENSE"
