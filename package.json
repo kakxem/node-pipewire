@@ -14,6 +14,9 @@
     "package": "node-pre-gyp package",
     "upload-binary": "./upload-binaries.sh"
   },
+  "os": [
+    "linux"
+  ],
   "binary": {
     "module_name": "index",
     "host": "https://github.com/kakxem/node-pipewire/releases/download/",
@@ -33,7 +36,7 @@
   "dependencies": {
     "typescript": "^4.8.4",
     "@mapbox/node-pre-gyp": "^1.0.10",
-    "cargo-cp-artifact": "^0.1"
+    "cargo-cp-artifact": "^0.1.9"
   },
   "repository": {
     "type": "git",
@@ -50,6 +53,7 @@
     "build/*.js.map",
     "src/lib.rs",
     "src/pipewire_thread.rs",
+    "src/proxy.rs",
     "Cargo.toml",
     "README.md",
     "LICENSE"

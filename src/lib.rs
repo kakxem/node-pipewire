@@ -1,20 +1,22 @@
 mod pipewire_thread;
+mod proxy;
 
 use lazy_static::lazy_static;
 use neon::prelude::*;
 use once_cell::sync::OnceCell;
-use pipewire::registry::Permission;
+use pipewire::permissions::PermissionFlags;
 use std::{
     cell::RefCell,
     collections::HashMap,
-    sync::{mpsc, Arc, Mutex}, time::Instant,
+    sync::{mpsc, Arc, Mutex},
+    time::Instant,
 };
 use tokio::runtime::Runtime;
 
 #[derive(Clone, Debug)]
 pub struct PipewirePort {
     pub id: u32,
-    pub permissions: Permission,
+    pub permissions: PermissionFlags,
     pub props: HashMap<String, String>,
     pub node_id: u32,
     pub name: String,
@@ -22,15 +24,21 @@ pub struct PipewirePort {
 }
 
 impl PipewirePort {
-    fn to_object<'a>(&self, cx: &mut FunctionContext<'a>) -> JsResult<'a, JsObject> {
+    fn to_object<'a>(&self, cx: &mut Cx<'a>) -> JsResult<'a, JsObject> {
         let obj = cx.empty_object();
 
         let js_id = cx.number(self.id);
         let js_permissions = cx.number(self.permissions.bits() as i32);
-        let js_props = cx.string(serde_json::to_string(&self.props).unwrap());
         let js_node_id = cx.number(self.node_id as i32);
         let js_name = cx.string(self.name.clone());
         let js_direction = cx.string(self.direction.clone());
+
+        let js_props = cx.empty_object();
+        for entry in &self.props {
+            let prop = cx.string(entry.1);
+            let key = entry.0.as_str();
+            js_props.set(cx, key, prop)?;
+        }
 
         obj.set(cx, "id", js_id)?;
         obj.set(cx, "permissions", js_permissions)?;
@@ -42,10 +50,11 @@ impl PipewirePort {
         Ok(obj)
     }
 }
+
 #[derive(Clone, Debug)]
 pub struct PipewireNode {
     pub id: u32,
-    pub permissions: Permission,
+    pub permissions: PermissionFlags,
     pub props: HashMap<String, String>,
     pub name: String,
     pub node_direction: String,
@@ -54,12 +63,11 @@ pub struct PipewireNode {
 }
 
 impl PipewireNode {
-    fn to_object<'a>(&self, cx: &mut FunctionContext<'a>) -> JsResult<'a, JsObject> {
+    fn to_object<'a>(&self, cx: &mut Cx<'a>) -> JsResult<'a, JsObject> {
         let obj = cx.empty_object();
 
         let js_id = cx.number(self.id);
         let js_permissions = cx.number(self.permissions.bits() as i32);
-        let js_props = cx.string(serde_json::to_string(&self.props).unwrap());
         let js_name = cx.string(self.name.clone());
         let js_node_direction = cx.string(self.node_direction.clone());
         let js_node_type = cx.string(self.node_type.clone());
@@ -68,6 +76,13 @@ impl PipewireNode {
         for (i, port) in self.ports.iter().enumerate() {
             let js_port = port.to_object(cx)?;
             js_ports.set(cx, i as u32, js_port)?;
+        }
+
+        let js_props = cx.empty_object();
+        for entry in &self.props {
+            let prop = cx.string(entry.1);
+            let key = entry.0.as_str();
+            js_props.set(cx, key, prop)?;
         }
 
         obj.set(cx, "id", js_id)?;
@@ -85,7 +100,7 @@ impl PipewireNode {
 #[derive(Clone, Debug)]
 pub struct PipewireLink {
     pub id: u32,
-    pub permissions: Permission,
+    pub permissions: PermissionFlags,
     pub props: HashMap<String, String>,
     pub input_node_id: u32,
     pub input_port_id: u32,
@@ -94,16 +109,22 @@ pub struct PipewireLink {
 }
 
 impl PipewireLink {
-    fn to_object<'a>(&self, cx: &mut FunctionContext<'a>) -> JsResult<'a, JsObject> {
+    fn to_object<'a>(&self, cx: &mut Cx<'a>) -> JsResult<'a, JsObject> {
         let obj = cx.empty_object();
 
         let js_id = cx.number(self.id);
         let js_permissions = cx.number(self.permissions.bits() as i32);
-        let js_props = cx.string(serde_json::to_string(&self.props).unwrap());
         let js_input_node_id = cx.number(self.input_node_id as i32);
         let js_input_port_id = cx.number(self.input_port_id as i32);
         let js_output_node_id = cx.number(self.output_node_id as i32);
         let js_output_port_id = cx.number(self.output_port_id as i32);
+
+        let js_props = cx.empty_object();
+        for entry in &self.props {
+            let prop = cx.string(entry.1);
+            let key = entry.0.as_str();
+            js_props.set(cx, key, prop)?;
+        }
 
         obj.set(cx, "id", js_id)?;
         obj.set(cx, "permissions", js_permissions)?;
@@ -117,12 +138,48 @@ impl PipewireLink {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct PipewireClient {
+    pub id: u32,
+    pub permissions: PermissionFlags,
+    pub pid: u32,
+    pub application_name: String,
+    pub props: HashMap<String, String>,
+}
+
+impl PipewireClient {
+    fn to_object<'a>(&self, cx: &mut Cx<'a>) -> JsResult<'a, JsObject> {
+        let obj = cx.empty_object();
+
+        let js_id = cx.number(self.id);
+        let js_permissions = cx.number(self.permissions.bits() as i32);
+        let js_pid = cx.number(self.pid as i32);
+        let js_application_name = cx.string(self.application_name.clone());
+
+        let js_props = cx.empty_object();
+        for entry in &self.props {
+            let prop = cx.string(entry.1);
+            let key = entry.0.as_str();
+            js_props.set(cx, key, prop)?;
+        }
+
+        obj.set(cx, "id", js_id)?;
+        obj.set(cx, "permissions", js_permissions)?;
+        obj.set(cx, "pid", js_pid)?;
+        obj.set(cx, "props", js_props)?;
+        obj.set(cx, "application_name", js_application_name)?;
+
+        Ok(obj)
+    }
+}
+
 // create an enum that will contain all the data we need to store
 #[derive(Clone, Debug)]
 pub enum PipewireData {
     Link(PipewireLink),
     Port(PipewirePort),
     Node(PipewireNode),
+    Client(PipewireClient),
 }
 
 // Create an enum with all the options that are available to send in front. (Pipewire thread -> Front)
@@ -130,7 +187,7 @@ enum MainOptions {
     // Create a node.
     CreateNode {
         id: u32,
-        permissions: Permission,
+        permissions: PermissionFlags,
         props: HashMap<String, String>,
         name: String,
         node_direction: String,
@@ -139,7 +196,7 @@ enum MainOptions {
     // Create a port.
     CreatePort {
         id: u32,
-        permissions: Permission,
+        permissions: PermissionFlags,
         props: HashMap<String, String>,
         node_id: u32,
         name: String,
@@ -148,13 +205,22 @@ enum MainOptions {
     // Create a link.
     CreateLink {
         id: u32,
-        permissions: Permission,
+        permissions: PermissionFlags,
         props: HashMap<String, String>,
         input_node: u32,
         output_node: u32,
         input_port: u32,
         output_port: u32,
     },
+    // Create a client.
+    CreateClient {
+        id: u32,
+        permissions: PermissionFlags,
+        pid: u32,
+        application_name: String,
+        props: HashMap<String, String>,
+    },
+
     // Delete item (node, port, link).
     DeleteItem {
         id: u32,
@@ -169,6 +235,7 @@ enum PipewireOptions {
     LinkPorts {
         input_port: u32,
         output_port: u32,
+        permanent: bool,
     },
     UnLinkPorts {
         input_port: u32,
@@ -177,10 +244,26 @@ enum PipewireOptions {
     LinkNodesNameToId {
         output_nodes_name: String,
         input_node_id: u32,
+        permanent: bool,
     },
     UnLinkNodesNameToId {
         output_nodes_name: String,
         input_node_id: u32,
+    },
+    CreateSource {
+        source_name: String,
+        audio_position: String,
+        channel_count: u32,
+        permanent: bool,
+    },
+    CreateSink {
+        sink_name: String,
+        audio_position: String,
+        channel_count: u32,
+        permanent: bool,
+    },
+    DeleteObject {
+        id: u32,
     },
 }
 
@@ -202,22 +285,7 @@ fn runtime<'a, C: Context<'a>>(cx: &mut C) -> NeonResult<&'static Runtime> {
     RUNTIME.get_or_try_init(|| Runtime::new().or_else(|err| cx.throw_error(err.to_string())))
 }
 
-fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-    // Mini-Schema:
-    // - We can send option to pipewire with pw_sender and we receive options from pipewire with pw_receiver.
-
-    // get the debug boolean from the arguments
-    let debug_argument = cx
-        .argument_opt(0)
-        .map(|v| Ok(v.downcast_or_throw::<JsBoolean, _>(&mut cx)?.value(&mut cx)))
-        .transpose()?;
-
-    if let Some(debug) = debug_argument {
-        ENABLE_DEBUG.with(|v| *v.borrow_mut() = debug);
-    }
-
-    let enable_debug = ENABLE_DEBUG.with(|v| *v.borrow());
-
+fn create_pw_thread_internal(enable_debug: bool) {
     // start a sender and receiver to communicate with the pipewire thread
     let (main_sender, main_receiver) = mpsc::channel();
     // start a sender and receiver to communicate with the main thread
@@ -348,6 +416,35 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                     }),
                 );
             }
+            MainOptions::CreateClient {
+                id,
+                permissions,
+                pid,
+                application_name,
+                props,
+            } => {
+                if enable_debug {
+                    println!(
+                        "{} + Client added: id: {}, pid: {}, application_name: {}",
+                        num_changes, id, pid, application_name,
+                    );
+                }
+                num_changes += 1;
+
+                // add link to ALL_DATA
+                let mut all_data = ALL_DATA.lock().unwrap();
+
+                all_data.insert(
+                    id,
+                    PipewireData::Client(PipewireClient {
+                        id,
+                        permissions,
+                        pid,
+                        application_name,
+                        props,
+                    }),
+                );
+            }
             MainOptions::DeleteItem { id } => {
                 // remove item from ALL_DATA
                 let mut all_data = ALL_DATA.lock().unwrap();
@@ -371,6 +468,12 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
                             PipewireData::Link(link) => {
                                 println!("{} - Removing link: id: {}, node_from: {}, port_from: {}, node_to: {}, port_to: {}", num_changes, link.id, link.input_node_id, link.input_port_id, link.output_node_id, link.output_port_id);
                             }
+                            PipewireData::Client(client) => {
+                                println!(
+                                    "{} - Removing client: id: {}, pid: {}, application_name: {}",
+                                    num_changes, client.id, client.pid, client.application_name
+                                );
+                            }
                         }
                     } else {
                         println!("{} - Removing unknown: {}", num_changes, id);
@@ -392,6 +495,25 @@ fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     ENABLE_DEBUG.with(|debug| {
         *debug.borrow_mut() = enable_debug;
     });
+}
+
+fn create_pw_thread(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    // Mini-Schema:
+    // - We can send option to pipewire with pw_sender and we receive options from pipewire with pw_receiver.
+
+    // get the debug boolean from the arguments
+    let debug_argument = cx
+        .argument_opt(0)
+        .map(|v| Ok(v.downcast_or_throw::<JsBoolean, _>(&mut cx)?.value(&mut cx)))
+        .transpose()?;
+
+    if let Some(debug) = debug_argument {
+        ENABLE_DEBUG.with(|v| *v.borrow_mut() = debug);
+    }
+
+    let enable_debug = ENABLE_DEBUG.with(|v| *v.borrow());
+
+    create_pw_thread_internal(enable_debug);
 
     Ok(cx.undefined())
 }
@@ -490,6 +612,30 @@ fn get_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
     Ok(output)
 }
 
+fn get_clients(mut cx: FunctionContext) -> JsResult<JsArray> {
+    let output = JsArray::new(&mut cx, 0);
+
+    let all_data = ALL_DATA.lock().unwrap();
+
+    let mut counter = 0;
+    // From all_data, get all clients and add them to the output array
+    for (_, data) in all_data.iter() {
+        match data {
+            PipewireData::Client(client) => {
+                let js_client = client.to_object(&mut cx);
+
+                // if js_client result is Ok, add it to the output array
+                if let Ok(js_client) = js_client {
+                    output.set(&mut cx, counter, js_client).unwrap();
+                    counter += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(output)
+}
+
 fn get_output_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
     let output = JsArray::new(&mut cx, 0);
 
@@ -545,9 +691,11 @@ fn get_input_nodes(mut cx: FunctionContext) -> JsResult<JsArray> {
 fn link_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let input_nodes_name = cx.argument::<JsString>(0)?;
     let output_node_id = cx.argument::<JsNumber>(1)?;
+    let permanent = cx.argument::<JsBoolean>(2)?;
 
     let input_nodes_name = input_nodes_name.value(&mut cx);
     let output_node_id = output_node_id.value(&mut cx) as u32;
+    let permanent = permanent.value(&mut cx);
 
     // get the pw_sender from the context data
     let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
@@ -561,6 +709,7 @@ fn link_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let result = temp_pw_sender.send(PipewireOptions::LinkNodesNameToId {
         output_nodes_name: input_nodes_name,
         input_node_id: output_node_id,
+        permanent: permanent,
     });
 
     // put the pw_sender back in the context data
@@ -615,9 +764,11 @@ fn unlink_nodes_name_to_id(mut cx: FunctionContext) -> JsResult<JsUndefined> {
 fn link_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let input_port_id = cx.argument::<JsNumber>(0)?;
     let output_port_id = cx.argument::<JsNumber>(1)?;
+    let permanent = cx.argument::<JsBoolean>(2)?;
 
     let input_port_id = input_port_id.value(&mut cx) as u32;
     let output_port_id = output_port_id.value(&mut cx) as u32;
+    let permanent = permanent.value(&mut cx);
 
     // get the pw_sender from the context data
     let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
@@ -631,6 +782,7 @@ fn link_ports(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let result = temp_pw_sender.send(PipewireOptions::LinkPorts {
         input_port: input_port_id,
         output_port: output_port_id,
+        permanent: permanent,
     });
 
     // put the pw_sender back in the context data
@@ -721,7 +873,7 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
         node_directions.push("Input".to_string());
         node_directions.push("Output".to_string());
     }
-    
+
     // get the actual nodes from the context data
     let nodes = get_current_nodes(node_name.clone(), node_directions.clone());
 
@@ -732,11 +884,12 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
             // start async task
             rt.spawn(async move {
                 let mut _node = None;
-        
+
                 loop {
                     // get the actual nodes from the context data
-                    let new_nodes = get_current_nodes(node_name.clone(), node_directions.clone()).unwrap();
-        
+                    let new_nodes =
+                        get_current_nodes(node_name.clone(), node_directions.clone()).unwrap();
+
                     // check if the length of the nodes is different
                     if new_nodes.len() > 0 {
                         ENABLE_DEBUG.with(|debug| {
@@ -752,7 +905,7 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                                 }
                             }
                         });
-        
+
                         // get the new node compared to the old nodes
                         for new_node in new_nodes.iter() {
                             let mut found = false;
@@ -767,12 +920,12 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                                 break;
                             }
                         }
-        
+
                         if _node.is_some() {
                             break;
                         }
                     }
-        
+
                     // check if the timeout is reached (default 5 seconds)
                     if start_time.elapsed().as_millis() > timeout {
                         break;
@@ -781,65 +934,116 @@ fn wait_for_new_node(mut cx: FunctionContext) -> JsResult<JsPromise> {
                     // wait 500ms (Maybe this can be changed to a lower value)
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
-        
+
                 // defer the result
                 deferred.settle_with(&channel, move |mut cx_task| match _node {
                     Some(node) => {
-                        let obj = cx_task.empty_object();
-                        let id = cx_task.number(node.id);
-                        let permissions = cx_task.number(node.permissions.bits() as i32);
-                        let props = cx_task.string(serde_json::to_string(&node.props).unwrap());
-                        let name = cx_task.string(node.name);
-                        let node_direction = cx_task.string(node.node_direction);
-                        let node_type = cx_task.string(node.node_type);
-                        let ports = cx_task.empty_array();
-        
-                        for (i, port) in node.ports.iter().enumerate() {
-                            let port_obj = cx_task.empty_object();
-        
-                            let port_id = cx_task.number(port.id);
-                            let port_permissions = cx_task.number(port.permissions.bits() as i32);
-                            let port_props = cx_task.string(serde_json::to_string(&port.props).unwrap());
-                            let port_node_id = cx_task.number(port.node_id);
-                            let port_name = cx_task.string(port.name.clone());
-                            let port_direction = cx_task.string(port.direction.clone());
-        
-                            port_obj.set(&mut cx_task, "id", port_id).unwrap();
-                            port_obj
-                                .set(&mut cx_task, "permissions", port_permissions)
-                                .unwrap();
-                            port_obj.set(&mut cx_task, "props", port_props).unwrap();
-                            port_obj.set(&mut cx_task, "node_id", port_node_id).unwrap();
-                            port_obj.set(&mut cx_task, "name", port_name).unwrap();
-                            port_obj
-                                .set(&mut cx_task, "direction", port_direction)
-                                .unwrap();
-        
-                            ports.set(&mut cx_task, i as u32, port_obj).unwrap();
-                        }
-        
-                        obj.set(&mut cx_task, "id", id).unwrap();
-                        obj.set(&mut cx_task, "permissions", permissions).unwrap();
-                        obj.set(&mut cx_task, "props", props).unwrap();
-                        obj.set(&mut cx_task, "name", name).unwrap();
-                        obj.set(&mut cx_task, "node_direction", node_direction)
-                            .unwrap();
-                        obj.set(&mut cx_task, "node_type", node_type).unwrap();
-                        obj.set(&mut cx_task, "ports", ports).unwrap();
-        
+                        let obj = node.to_object(&mut cx_task)?;
                         Ok(obj)
                     }
                     None => cx_task.throw_error("No node found"),
                 });
             });
-        
-        },
+        }
         Err(_) => {
-            return cx.throw_error("Error getting the nodes"); 
-        } 
+            return cx.throw_error("Error getting the nodes");
+        }
     };
 
     Ok(promise)
+}
+
+fn create_source(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let new_source_name = cx.argument::<JsString>(0)?;
+    let new_audio_position = cx.argument::<JsString>(1)?;
+    let new_channel_count = cx.argument::<JsNumber>(2)?;
+    let permanent = cx.argument::<JsBoolean>(3)?;
+
+    let new_source_name = new_source_name.value(&mut cx);
+    let new_audio_position = new_audio_position.value(&mut cx);
+    let new_channel_count = new_channel_count.value(&mut cx) as u32;
+    let permanent = permanent.value(&mut cx);
+
+    // get the pw_sender from the context data
+    let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
+        pw_sender
+            .borrow_mut()
+            .take()
+            .expect("pw_sender not set in context data")
+    });
+
+    let _ = temp_pw_sender.send(PipewireOptions::CreateSource {
+        source_name: new_source_name,
+        audio_position: new_audio_position,
+        channel_count: new_channel_count,
+        permanent: permanent,
+    });
+
+    // put the pw_sender back in the context data
+    PW_SENDER.with(|pw_sender| {
+        pw_sender.borrow_mut().replace(temp_pw_sender);
+    });
+
+    Ok(cx.undefined())
+}
+
+fn create_sink(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let new_sink_name = cx.argument::<JsString>(0)?;
+    let new_audio_position = cx.argument::<JsString>(1)?;
+    let new_channel_count = cx.argument::<JsNumber>(2)?;
+    let permanent = cx.argument::<JsBoolean>(3)?;
+
+    let new_sink_name = new_sink_name.value(&mut cx);
+    let new_audio_position = new_audio_position.value(&mut cx);
+    let new_channel_count = new_channel_count.value(&mut cx) as u32;
+    let permanent = permanent.value(&mut cx);
+
+    // get the pw_sender from the context data
+    let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
+        pw_sender
+            .borrow_mut()
+            .take()
+            .expect("pw_sender not set in context data")
+    });
+
+    let _ = temp_pw_sender.send(PipewireOptions::CreateSink {
+        sink_name: new_sink_name,
+        audio_position: new_audio_position,
+        channel_count: new_channel_count,
+        permanent: permanent,
+    });
+
+    // put the pw_sender back in the context data
+    PW_SENDER.with(|pw_sender| {
+        pw_sender.borrow_mut().replace(temp_pw_sender);
+    });
+
+    Ok(cx.undefined())
+}
+
+fn destroy_object(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    let destroy_target_id = cx.argument::<JsNumber>(0)?;
+
+    let destroy_target_id = destroy_target_id.value(&mut cx) as u32;
+
+    // get the pw_sender from the context data
+    let temp_pw_sender: pipewire::channel::Sender<PipewireOptions> = PW_SENDER.with(|pw_sender| {
+        pw_sender
+            .borrow_mut()
+            .take()
+            .expect("pw_sender not set in context data")
+    });
+
+    let _ = temp_pw_sender.send(PipewireOptions::DeleteObject {
+        id: destroy_target_id,
+    });
+
+    // put the pw_sender back in the context data
+    PW_SENDER.with(|pw_sender| {
+        pw_sender.borrow_mut().replace(temp_pw_sender);
+    });
+
+    Ok(cx.undefined())
 }
 
 #[neon::main]
@@ -849,6 +1053,7 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("getLinks", get_links)?;
     cx.export_function("getPorts", get_ports)?;
     cx.export_function("getNodes", get_nodes)?;
+    cx.export_function("getClients", get_clients)?;
     cx.export_function("getOutputNodes", get_output_nodes)?;
     cx.export_function("getInputNodes", get_input_nodes)?;
     cx.export_function("linkNodesNameToId", link_nodes_name_to_id)?;
@@ -856,5 +1061,8 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("linkPorts", link_ports)?;
     cx.export_function("unlinkPorts", unlink_ports)?;
     cx.export_function("waitForNewNode", wait_for_new_node)?;
+    cx.export_function("createSource", create_source)?;
+    cx.export_function("createSink", create_sink)?;
+    cx.export_function("destroyObject", destroy_object)?;
     Ok(())
 }
