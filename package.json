@@ -4,12 +4,14 @@
   "description": "NodeJS native module written in Rust and Typescript to interact with Pipewire",
   "main": "build/index.js",
   "scripts": {
-    "build": "tsc && cargo-cp-artifact -nc build/index.node -- cargo build --message-format=json-render-diagnostics",
-    "build-cross": "tsc && cross build --target $TARGET && cp target/$TARGET/release/libnode_pipewire.so build/index.node",
-    "build-cross:release": "tsc && cross build --target $TARGET --release && cp target/$TARGET/release/libnode_pipewire.so build/index.node",
+    "build": "tsc && cargo-cp-artifact -nc build/index.node -- cargo build --locked --message-format=json-render-diagnostics",
+    "build-native": "cargo-cp-artifact -nc build/index.node -- cargo build --locked --message-format=json-render-diagnostics",
+    "build-cross": "tsc && cross build --locked --target $TARGET && cp target/$TARGET/release/libnode_pipewire.so build/index.node",
+    "build-cross:release": "tsc && cross build --locked --target $TARGET --release && cp target/$TARGET/release/libnode_pipewire.so build/index.node",
     "build-debug": "npm run build --",
     "build-release": "npm run build -- --release",
-    "install": "node-pre-gyp install --fallback-to-build=false || npm run build-release",
+    "install": "node-pre-gyp install --fallback-to-build=false || npm run build-native -- --release",
+    "prepack": "tsc",
     "test": "cargo test",
     "package": "node-pre-gyp package",
     "upload-binary": "./upload-binaries.sh"
@@ -17,6 +19,9 @@
   "os": [
     "linux"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "binary": {
     "module_name": "index",
     "host": "https://github.com/kakxem/node-pipewire/releases/download/",
@@ -34,9 +39,9 @@
     "node-pre-gyp-github": "^1.4.4"
   },
   "dependencies": {
-    "typescript": "^4.8.4",
-    "@mapbox/node-pre-gyp": "^1.0.10",
-    "cargo-cp-artifact": "^0.1.9"
+    "@mapbox/node-pre-gyp": "^2.0.3",
+    "cargo-cp-artifact": "^0.1.9",
+    "typescript": "^4.8.4"
   },
   "repository": {
     "type": "git",
@@ -55,6 +60,7 @@
     "src/pipewire_thread.rs",
     "src/proxy.rs",
     "Cargo.toml",
+    "Cargo.lock",
     "README.md",
     "LICENSE"
   ]
