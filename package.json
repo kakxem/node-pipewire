@@ -2,17 +2,17 @@
   "name": "node-pipewire",
   "version": "1.0.16",
   "description": "NodeJS native module written in Rust and Typescript to interact with Pipewire",
-  "main": "build/index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "build": "tsc && cargo-cp-artifact -nc build/index.node -- cargo build --locked --message-format=json-render-diagnostics",
-    "build-native": "cargo-cp-artifact -nc build/index.node -- cargo build --locked --message-format=json-render-diagnostics",
-    "build-cross": "tsc && cross build --locked --target $TARGET && cp target/$TARGET/release/libnode_pipewire.so build/index.node",
-    "build-cross:release": "tsc && cross build --locked --target $TARGET --release && cp target/$TARGET/release/libnode_pipewire.so build/index.node",
+    "build": "tsc && mkdir -p dist/binding/napi-v6 && cargo-cp-artifact -nc dist/binding/napi-v6/index.node -- cargo build --locked --message-format=json-render-diagnostics",
+    "build-native": "mkdir -p dist/binding/napi-v6 && cargo-cp-artifact -nc dist/binding/napi-v6/index.node -- cargo build --locked --message-format=json-render-diagnostics",
+    "build-cross": "tsc && mkdir -p dist/binding/napi-v6 && cross build --locked --target $TARGET && cp target/$TARGET/debug/libnode_pipewire.so dist/binding/napi-v6/index.node",
+    "build-cross:release": "tsc && mkdir -p dist/binding/napi-v6 && cross build --locked --target $TARGET --release && cp target/$TARGET/release/libnode_pipewire.so dist/binding/napi-v6/index.node",
     "build-debug": "npm run build --",
     "build-release": "npm run build -- --release",
     "install": "node-pre-gyp install --fallback-to-build=false || npm run build-native -- --release",
     "prepack": "tsc",
-    "test": "cargo test",
+    "test": "cargo test --locked -- --test-threads=1",
     "package": "node-pre-gyp package",
     "upload-binary": "./upload-binaries.sh"
   },
@@ -26,8 +26,11 @@
     "module_name": "index",
     "host": "https://github.com/kakxem/node-pipewire/releases/download/",
     "remote_path": "{version}",
-    "package_name": "{node_abi}-{platform}-{arch}.tar.gz",
-    "module_path": "./build"
+    "package_name": "napi-v{napi_build_version}-{platform}-{arch}.tar.gz",
+    "module_path": "./dist/binding/napi-v{napi_build_version}",
+    "napi_versions": [
+      6
+    ]
   },
   "author": {
     "name": "kakxem",
@@ -56,9 +59,8 @@
     "nodejs"
   ],
   "files": [
-    "build/*.d.ts",
-    "build/*.js",
-    "build/*.js.map",
+    "dist/*.js",
+    "dist/*.js.map",
     "src/lib.rs",
     "src/pipewire_thread.rs",
     "src/proxy.rs",

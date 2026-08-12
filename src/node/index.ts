@@ -42,7 +42,7 @@ type NodeDirection = "Input" | "Output" | "Both";
 type AudioPosition = "FL" | "FR";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const library = require("./index.node");
+const library = require("./binding/napi-v6/index.node");
 
 export function createPwThread(enableDebug?: boolean) {
   library.createPwThread(enableDebug ?? false);
