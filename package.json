@@ -29,7 +29,10 @@
     "package_name": "{node_abi}-{platform}-{arch}.tar.gz",
     "module_path": "./build"
   },
-  "author": "Paul Antonio Almasi <paul.antonio.almasi@gmail.com>",
+  "author": {
+    "name": "kakxem",
+    "url": "https://github.com/kakxem"
+  },
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^18.11.9",
