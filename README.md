@@ -136,6 +136,13 @@ destroyObject(id: number);
 
 This project was bootstrapped by [create-neon](https://www.npmjs.com/package/create-neon).
 
+If Nix is available, use the provided development flake to get the
+required build and test dependencies:
+
+```sh
+nix develop
+```
+
 Clone the repository:
   
 ```sh
