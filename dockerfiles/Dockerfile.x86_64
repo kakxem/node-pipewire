@@ -1,4 +1,4 @@
-FROM ghcr.io/cross-rs/x86_64-unknown-linux-gnu:edge
+FROM ghcr.io/cross-rs/x86_64-unknown-linux-gnu:edge@sha256:bd64b44f22afa7ec8ba332f4fd9943a4b43252d9f1174a10214d960423dd7732
 
 RUN apt-get update && \
   apt-get install --assume-yes \

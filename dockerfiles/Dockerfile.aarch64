@@ -1,4 +1,4 @@
-FROM ghcr.io/cross-rs/aarch64-unknown-linux-gnu:edge
+FROM ghcr.io/cross-rs/aarch64-unknown-linux-gnu:edge@sha256:86fb5b55fbada2eeca29a4da135a2bec274caa4bc561791d6c2207fdd217a34b
 
 RUN dpkg --add-architecture arm64 && \
   apt-get update && \

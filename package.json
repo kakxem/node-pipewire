@@ -41,8 +41,7 @@
     "@types/node": "^18.11.9",
     "@typescript-eslint/eslint-plugin": "^5.42.1",
     "@typescript-eslint/parser": "^5.42.1",
-    "eslint": "^8.27.0",
-    "node-pre-gyp-github": "^1.4.4"
+    "eslint": "^8.27.0"
   },
   "dependencies": {
     "@mapbox/node-pre-gyp": "^2.0.3",
